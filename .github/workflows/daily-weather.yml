@@ -13,7 +13,7 @@ jobs:
         id: fact
         run: |
           FACTS=(
-            "🌧️ Feitje 1"
+            "🌧️ test
             "⚡ Feitje 2"
           )
           RANDOM_INDEX=$((RANDOM % ${#FACTS[@]}))
