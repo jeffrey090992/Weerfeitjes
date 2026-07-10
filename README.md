@@ -18,3 +18,4 @@ Dagelijks weerfeitje op Discord via GitHub Actions!
    - Actions → Dagelijks Weerfeitje → Run workflow
 
 Done! 🚀
+test
