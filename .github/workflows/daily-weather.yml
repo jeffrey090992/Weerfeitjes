@@ -19,7 +19,7 @@ jobs:
           RANDOM_INDEX=$((RANDOM % ${#FACTS[@]}))
           SELECTED_FACT="${FACTS[$RANDOM_INDEX]}"
           echo "FACT=$SELECTED_FACT" >> $GITHUB_OUTPUT
-      -      - name: Verzend naar Discord
+        - name: Verzend naar Discord
         run: |
           curl -X POST ${{ secrets.DISCORD_WEBHOOK }} \
           -H "Content-Type: application/json" \
