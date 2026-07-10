@@ -23,6 +23,6 @@ jobs:
 
       - name: Verzend naar Discord
         run: |
-          curl -X POST ${{ secrets.DISCORD_WEBHOOK }} \
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
           -H "Content-Type: application/json" \
           -d "{\"content\": \"${{ steps.fact.outputs.FACT }}\"}"
