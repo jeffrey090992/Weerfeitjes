@@ -18,4 +18,4 @@ Dagelijks weerfeitje op Discord via GitHub Actions!
    - Actions → Dagelijks Weerfeitje → Run workflow
 
 Done! 🚀
-test
+[Create workflow file](.github/workflows/daily-weather.yml)
