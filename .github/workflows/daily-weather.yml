@@ -42,46 +42,8 @@ jobs:
           echo "SUNRISE=$SUNRISE" >> "$GITHUB_OUTPUT"
           echo "SUNSET=$SUNSET" >> "$GITHUB_OUTPUT"
 
-      - name: Maak Discord bericht
-        env:
-          FACT: ${{ steps.fact.outputs.FACT }}
-          TEMP: ${{ steps.weather.outputs.TEMP }}
-          FEEL: ${{ steps.weather.outputs.FEEL }}
-          WIND: ${{ steps.weather.outputs.WIND }}
-          MIN: ${{ steps.weather.outputs.MIN }}
-          MAX: ${{ steps.weather.outputs.MAX }}
-          RAIN: ${{ steps.weather.outputs.RAIN }}
-          SUNRISE: ${{ steps.sun.outputs.SUNRISE }}
-          SUNSET: ${{ steps.sun.outputs.SUNSET }}
+            - name: Test output
         run: |
-          jq -n \
-            --arg content "🌞 Goedemorgen Nederland!
-
-🌦️ Weerbericht
-
-🌡️ Temperatuur:
-Nu: ${TEMP}°C
-Voelt als: ${FEEL}°C
-Vandaag: ${MIN}°C - ${MAX}°C
-
-🌧️ Regenkans:
-${RAIN}%
-
-💨 Wind:
-${WIND} km/u
-
-☀️ Zon:
-🌅 Opkomst: ${SUNRISE}
-🌇 Onder: ${SUNSET}
-
-🌦️ Weerfeitje:
-${FACT}" \
-            '{content: $content}' > message.json
-
-      - name: Verstuur naar Discord
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: |
-          curl -X POST "$WEBHOOK" \
-            -H "Content-Type: application/json" \
-            -d @message.json
+          echo "FACT=${{ steps.fact.outputs.FACT }}"
+          echo "TEMP=${{ steps.weather.outputs.TEMP }}"
+          echo "SUN=${{ steps.sun.outputs.SUNRISE }}"
