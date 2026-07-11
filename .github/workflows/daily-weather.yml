@@ -10,17 +10,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Select Random Weather Fact
-  id: fact
-  run: |
-    FACT=$(shuf -n 1 facts.txt)
-    echo "FACT=$FACT" >> $GITHUB_OUTPUT
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Random Weather Fact
+        id: fact
+        run: |
+          FACT=$(shuf -n 1 facts.txt)
+          echo "FACT=$FACT" >> $GITHUB_OUTPUT
+
       - name: Verzend naar Discord
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           curl -X POST "$WEBHOOK" \
-          -H "Content-Type: application/json" \
-          -d "$(jq -n --arg content "$FACT" '{content: $content}')"
-      
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg content "$FACT" '{content: $content}')"
