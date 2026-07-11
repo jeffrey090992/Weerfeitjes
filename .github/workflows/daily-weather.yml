@@ -17,10 +17,7 @@ jobs:
         id: fact
         run: |
           FACT=$(shuf -n 1 facts.txt)
-
-          echo "FACT<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$FACT" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "FACT=$FACT" >> "$GITHUB_OUTPUT"
 
       - name: Haal weer op voor Nederland
         id: weather
@@ -59,8 +56,8 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
         run: |
-          MESSAGE=$(cat <<EOF
-🌞 Goedemorgen Nederland!
+          jq -n \
+          --arg content "🌞 Goedemorgen Nederland!
 
 🌦️ Weerbericht
 
@@ -80,11 +77,8 @@ ${WIND} km/u
 🌇 Onder: ${SUNSET}
 
 🌦️ Weerfeitje:
-${FACT}
-EOF
-)
-
-          jq -n --arg content "$MESSAGE" '{content: $content}' | \
+${FACT}" \
+          '{content: $content}' | \
           curl -X POST "$WEBHOOK" \
-            -H "Content-Type: application/json" \
-            -d @-
+          -H "Content-Type: application/json" \
+          -d @-
