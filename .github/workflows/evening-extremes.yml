@@ -14,15 +14,28 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # We vragen de gemeten waarden van vandaag op via de forecast API (die bevat ook de actuele dagmetingen)
-          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_gusts_10m_max&timezone=Europe%2FAmsterdam")
+          # API-link uitgebreid met sunshine_duration en snowfall_sum
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_gusts_10m_max,sunshine_duration,snowfall_sum&timezone=Europe%2FAmsterdam")
           
           MAX_TEMP=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           MIN_TEMP=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           TOTAL_RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
           MAX_GUST=$(echo "$DATA" | jq -r '.daily.wind_gusts_10m_max[0]')
+          SNOW_CM=$(echo "$DATA" | jq -r '.daily.snowfall_sum[0]')
 
-          # Bepaal een leuke samenvatting op basis van het weer van vandaag
+          # Zonneschijn omrekenen van seconden naar uren
+          SUN_SEC=$(echo "$DATA" | jq -r '.daily.sunshine_duration[0]')
+          SUN_HOURS=$(awk "BEGIN {print $SUN_SEC/3600}")
+          SUN_HOURS_ROUND=$(printf "%.1f" $SUN_HOURS)
+
+          # Sneeuwregel bouwen (alleen vullen als er sneeuw is gevallen)
+          if (( $(echo "$SNOW_CM > 0" | bc -l) )); then
+            SNOW_LINE="❄️ Gevallen Sneeuw: $SNOW_CM cm"
+          else
+            SNOW_LINE=""
+          fi
+
+          # Bepaal de status van de dag
           if (( $(echo "$TOTAL_RAIN > 5.0" | bc -l) )); then
             STATUS="🌧️ Het was een behoorlijk natte dag."
           elif (( $(echo "$MAX_TEMP > 25.0" | bc -l) )); then
@@ -33,7 +46,7 @@ jobs:
             STATUS="🌤️ Een prima, rustige dag achter de rug."
           fi
 
-          # Array bouwen voor de opgemaakte details
+          # Array bouwen voor de opgemaakte details via jq
           jq -n \
             --arg title "📊 Het Weer van Vandaag: De Terugblik" \
             --arg status "$STATUS" \
@@ -41,17 +54,20 @@ jobs:
             --arg min "$MIN_TEMP" \
             --arg rain "$TOTAL_RAIN" \
             --arg gust "$MAX_GUST" \
+            --arg sun "$SUN_HOURS_ROUND" \
+            --arg snow "$SNOW_LINE" \
             '{
               embeds: [{
                 title: $title,
                 description: $status,
-                color: 15105570, # Een mooie avond/oranje kleur
+                color: 15105570,
                 fields: [
                   {name: "🔥 Hoogste temperatuur", value: ($max + "°C"), inline: true},
                   {name: "🧊 Laagste temperatuur", value: ($min + "°C"), inline: true},
-                  {name: "\u200b", value: "\u200b", inline: false}, # Lege regel voor structuur
+                  {name: "🕒 Totale zonuren", value: ($sun + " uur"), inline: true},
                   {name: "💧 Totale neerslag", value: ($rain + " mm"), inline: true},
-                  {name: "💨 Hardste windstoot", value: ($gust + " km/h"), inline: true}
+                  {name: "💨 Hardste windstoot", value: ($gust + " km/h"), inline: true},
+                  (if $snow != "" then {name: "☃️ Winter", value: $snow, inline: true} else empty end)
                 ],
                 footer: { text: "Fijne avond!" }
               }]
