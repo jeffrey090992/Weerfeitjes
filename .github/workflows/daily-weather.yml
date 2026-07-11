@@ -31,11 +31,18 @@ jobs:
           echo "MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')" >> "$GITHUB_OUTPUT"
           echo "RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')" >> "$GITHUB_OUTPUT"
 
-      - name: Haal zon op
+            - name: Haal zon op
         id: sun
         run: |
           DATA=$(curl -s "https://api.sunrise-sunset.org/json?lat=52.13&lng=5.29&formatted=0")
-                - name: Maak Discord bericht
+
+          SUNRISE=$(echo "$DATA" | jq -r '.results.sunrise')
+          SUNSET=$(echo "$DATA" | jq -r '.results.sunset')
+
+          echo "SUNRISE=$SUNRISE" >> "$GITHUB_OUTPUT"
+          echo "SUNSET=$SUNSET" >> "$GITHUB_OUTPUT"
+
+      - name: Maak Discord bericht
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           TEMP: ${{ steps.weather.outputs.TEMP }}
@@ -57,6 +64,7 @@ jobs:
           echo "☀️ Opkomst: $SUNRISE" >> message.txt
           echo "🌇 Onder: $SUNSET" >> message.txt
           echo "🌦️ Weerfeitje: $FACT" >> message.txt
+
       - name: Verstuur naar Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -65,4 +73,3 @@ jobs:
           curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
             -d @message.json
-        
