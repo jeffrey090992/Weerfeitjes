@@ -29,9 +29,9 @@ jobs:
           echo "WIND=$(echo "$DATA" | jq -r '.current.wind_speed_10m')" >> "$GITHUB_OUTPUT"
           echo "MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')" >> "$GITHUB_OUTPUT"
           echo "MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')" >> "$GITHUB_OUTPUT"
-          echo "RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')" >> "$GITHUB_OUTPUT"
+                   echo "RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')" >> "$GITHUB_OUTPUT"
 
-            - name: Haal zon op
+      - name: Haal zon op 
         id: sun
         run: |
           DATA=$(curl -s "https://api.sunrise-sunset.org/json?lat=52.13&lng=5.29&formatted=0")
