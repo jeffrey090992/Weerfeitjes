@@ -21,19 +21,26 @@ jobs:
           FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&current=temperature_2m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FAmsterdam")
+          # API-link uitgebreid met sunrise en sunset
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Europe%2FAmsterdam")
           
           VANDAAG_MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           VANDAAG_MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           VANDAAG_RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
+          
+          # Tijden uit de API halen (en inkorten zodat alleen de uren en minuten overblijven)
+          ZON_OP=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
+          ZON_ONDER=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
 
           TEMP_TXT="$VANDAAG_MIN°C tot $VANDAAG_MAX°C"
           RAIN_TXT="$VANDAAG_RAIN%"
+          ZON_TXT="🌅 $ZON_OP  |  🌇 $ZON_ONDER"
 
           jq -n \
             --arg title "📅 Weersverwachting voor Vandaag" \
             --arg temp "$TEMP_TXT" \
             --arg rain "$RAIN_TXT" \
+            --arg zon "$ZON_TXT" \
             --arg fact "$FACT" \
             '{
               embeds: [{
@@ -42,6 +49,7 @@ jobs:
                 fields: [
                   {name: "Verwachte Temperatuur", value: $temp, inline: true},
                   {name: "Kans op regen vandaag", value: $rain, inline: true},
+                  {name: "Zon (Op / Onder)", value: $zon, inline: false},
                   {name: "Weerfeitje van de dag", value: $fact}
                 ]
               }]
