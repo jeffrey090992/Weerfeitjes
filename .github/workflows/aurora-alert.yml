@@ -14,23 +14,32 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Haal de actuele 3-uurlijkse Kp-index op via NOAA
-          KP_DATA=$(curl -s "https://services.swpc.noaa.gov/products/noaa-scales.json")
+          # Haal de meest actuele Kp-index voorspelling op
+          KP_DATA=$(curl -s "https://services.swpc.noaa.gov/products/noaa-scales-3-day.json")
           
-          # Filter de huidige Kp-waarde uit de geomagnetische storm data (G-schaal naar Kp)
-          # We pakken de meest recente waarde uit de array
-          G_SCALE=$(echo "$KP_DATA" | jq -r '.geomagnetic.current.scale // "0"' | tr -d 'G')
+          # Pak de eerstvolgende Kp-waarde uit de database
+          KP_VAL=$(echo "$KP_DATA" | jq -r '.geomagnetic[0].scale // "0"' | tr -d 'G')
           
-          # G0 = Kp < 5, G1 = Kp 5, G2 = Kp 6, G3 = Kp 7, enzovoort.
-          if [ "$G_SCALE" != "0" ] && [ "$G_SCALE" != "null" ]; then
-            # Er is een actieve zonnestorm (G1 of hoger)
-            KP_ESTIMATED=$((G_SCALE + 4))
+          # Om te kunnen testen sturen we áltijd een bericht als je hem handmatig start (workflow_dispatch)
+          # Maar in het automatische schema (cron) stuurt hij hem pas vanaf Kp 4 of hoger
+          if [ "$KP_VAL" -ge 4 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             
-            ALERT_MSG="🚨 **Noorderlicht Alert!** Er is momenteel een zonnestorm actief met een kracht van **Kp $KP_ESTIMATED** (G$G_SCALE). Als het vanavond onbewolkt is, loont het absoluut de moeite om op een donkere plek naar het noorden te kijken of te fotograferen met een lange sluitertijd!"
-            COLOR=5763719 # Mooi noorderlicht groen
-            
+            # Bepaal de status op basis van de Kp-waarde
+            if [ "$KP_VAL" -ge 6 ]; then
+              STATUS="🔴 **Sterke zonnestorm actief (Kp $KP_VAL)!** Grote kans op noorderlicht in Nederland bij helder weer!"
+              COLOR=16711680 # Rood
+            elif [ "$KP_VAL" -ge 4 ]; then
+              STATUS="🟡 **Verhoogde activiteit (Kp $KP_VAL).** Fotografisch noorderlicht is mogelijk. Kijk naar het noorden!"
+              COLOR=16776960 # Geel
+            else
+              STATUS="🟢 **Geen zonnestorm (Kp $KP_VAL).** De activiteit is momenteel rustig."
+              COLOR=65280 # Groen
+            fi
+
+            ALERT_MSG="$STATUS\n\nAls het vanavond onbewolkt is, loont het de moeite om op een donkere plek buiten de stad richting het noorden te kijken."
+
             jq -n \
-              --arg title "🌌 Noorderlicht Waarschuwing Actief" \
+              --arg title "🌌 Noorderlicht & Zonneactiviteit Update" \
               --arg desc "$ALERT_MSG" \
               --arg color "$COLOR" \
               '{
@@ -38,6 +47,9 @@ jobs:
                   title: $title,
                   description: $desc,
                   color: ($color | tonumber),
+                  fields: [
+                    {name: "📊 Actuele Status", value: "Als je dit via de ’Run workflow’ knop test, zie je hier altijd de huidige status.", inline: false}
+                  ],
                   footer: { text: "Data via NOAA Space Weather Prediction Center" }
                 }]
               }' > discord_aurora_payload.json
@@ -47,5 +59,5 @@ jobs:
                  -d @discord_aurora_payload.json \
                  "$WEBHOOK"
           else
-            echo "Kp-index is momenteel laag (onder de 5). Geen melding nodig."
+            echo "Kp-index ($KP_VAL) is momenteel te laag voor een automatische melding."
           fi
