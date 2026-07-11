@@ -10,41 +10,73 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Bereken sterrenkijk-score
+      - name: Bereken sterrenkijk-score en maanfase
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Haal maanfase en bewolking op voor de komende nacht
-          DATA=$(curl -s "https://api.open-meteo.com/v1/astronomy?latitude=52.13&longitude=5.29&daily=cloud_cover_mean,moonrise,moonset&timezone=Europe%2FAmsterdam")
-          
+          # 1. Haal de bewolking op via Open-Meteo
+          DATA=$(curl -s "https://api.open-meteo.com/v1/astronomy?latitude=52.13&longitude=5.29&daily=cloud_cover_mean&timezone=Europe%2FAmsterdam")
           CLOUDS=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
           
-          # Open-Meteo geeft geen directe 'fase' in tekst, maar we berekenen de score op basis van bewolking
-          # Hoe minder wolken, hoe hoger de score (start bij 10)
-          SCORE=10
-          
-          if (( $(echo "$CLOUDS > 80" | bc -l) )); then SCORE=2;
-          elif (( $(echo "$CLOUDS > 60" | bc -l) )); then SCORE=4;
-          elif (( $(echo "$CLOUDS > 40" | bc -l) )); then SCORE=6;
-          elif (( $(echo "$CLOUDS > 20" | bc -l) )); then SCORE=8;
+          # 2. Haal de actuele maanfase op (verlichte fractie tussen 0.0 en 1.0)
+          DATE_NOW=$(date +%Y-%m-%d)
+          MOON_DATA=$(curl -s "https://api.met.no/weatherapi/sunrise/3.0/sunmoon?lat=52.13&lon=5.29&date=$DATE_NOW&offset=+02:00")
+          MOON_ILLUM=$(echo "$MOON_DATA" | jq -r '.properties.moon.illumination // 0')
+
+          # Maanfase vertalen naar tekst en emoji
+          if (( $(echo "$MOON_ILLUM < 0.05" | bc -l) )); then
+            MAAN_FASE="🌑 Nieuwe Maan (Perfect voor diepe sterrenkijken)"
+          elif (( $(echo "$MOON_ILLUM < 0.45" | bc -l) )); then
+            MAAN_FASE="🌒 Wassende Sikkel (Weinig lichtvervuiling)"
+          elif (( $(echo "$MOON_ILLUM < 0.55" | bc -l) )); then
+            MAAN_FASE="🌓 Eerste Kwartier (Matige lichtvervuiling)"
+          elif (( $(echo "$MOON_ILLUM < 0.95" | bc -l) )); then
+            MAAN_FASE="🌔 Wassende Maan (Veel lichtvervuiling)"
+          elif (( $(echo "$MOON_ILLUM <= 1.0" | bc -l) )); then
+            MAAN_FASE="🌕 Volle Maan (Veel lichtvervuiling, sterren minder goed zichtbaar)"
+          else
+            MAAN_FASE="🌙 Maanfase onbekend"
           fi
 
-          # Tekst bepalen op basis van score
+          # Procentuele weergave maken (bijv. 52%)
+          MOON_PCT=$(awk "BEGIN {print int($MOON_ILLUM * 100)}")
+
+          # 3. Sterrenkijk-score berekenen (max 10, aftrek op basis van wolken én maanlicht)
+          SCORE=10
+          
+          # Aftrek voor wolken
+          if (( $(echo "$CLOUDS > 80" | bc -l) )); then SCORE=$((SCORE - 6));
+          elif (( $(echo "$CLOUDS > 50" | bc -l) )); then SCORE=$((SCORE - 4));
+          elif (( $(echo "$CLOUDS > 20" | bc -l) )); then SCORE=$((SCORE - 2));
+          fi
+
+          # Aftrek voor felle maan (volle maan stoort het zicht op zwakke sterren)
+          if (( $(echo "$MOON_ILLUM > 0.85" | bc -l) )) && [ $SCORE -gt 2 ]; then
+            SCORE=$((SCORE - 2))
+          fi
+
+          # Zorg dat score niet onder de 1 zakt
+          if [ $SCORE -lt 1 ]; then SCORE=1; fi
+
+          # Advies bepalen
           if [ $SCORE -ge 8 ]; then
-            ADVIES="🔭 **Perfecte nacht!** Het is zo goed als onbewolkt. Pak je telescoop of verrekijker erbij!"
+            ADVIES="🔭 **Perfecte nacht!** Het is helder en de omstandigheden zijn optimaal. Pak je telescoop of verrekijker!"
             COLOR=1752220 # Groen
           elif [ $SCORE -ge 5 ]; then
-            ADVIES="🌤️ **Redelijke omstandigheden:** Er zijn wat wolkenvelden ($CLOUDS% bewolking), maar tussendoor kun je prima sterrenkijken."
+            ADVIES="🌤️ **Redelijke omstandigheden:** Er is wat bewolking of maanlicht, maar tussendoor kun je prima kijken."
             COLOR=15105570 # Oranje
           else
-            ADVIES="☁️ **Geen goede nacht:** Te veel bewolking ($CLOUDS%). Je kunt beter binnen blijven."
+            ADVIES="☁️ **Slechte nacht:** Te veel bewolking of storend maanlicht. Je kunt beter binnen blijven."
             COLOR=12582912 # Rood
           fi
 
+          # Payload versturen via jq
           jq -n \
             --arg title "🔭 Sterrenkijk-weerbericht voor het Weekend" \
             --arg score "Score voor vannacht: $SCORE/10" \
             --arg advies "$ADVIES" \
+            --arg maan "$MAAN_FASE ($MOON_PCT% verlicht)" \
+            --arg wolken "$CLOUDS%" \
             --arg color "$COLOR" \
             '{
               embeds: [{
@@ -52,7 +84,9 @@ jobs:
                 description: $advies,
                 color: ($color | tonumber),
                 fields: [
-                  {name: "📊 Kwaliteit van de nacht", value: $score, inline: true}
+                  {name: "📊 Kwaliteit van de nacht", value: $score, inline: true},
+                  {name: "☁️ Gemiddelde bewolking", value: $wolken, inline: true},
+                  {name: "🌓 Stand van de Maan", value: $maan, inline: false}
                 ],
                 footer: { text: "Clear skies!" }
               }]
