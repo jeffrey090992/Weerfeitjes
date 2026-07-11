@@ -23,7 +23,7 @@ jobs:
           echo "TEMP=$(echo "$DATA" | jq -r '.current.temperature_2m')" >> "$GITHUB_OUTPUT"
           echo "FEEL=$(echo "$DATA" | jq -r '.current.apparent_temperature')" >> "$GITHUB_OUTPUT"
           echo "WIND=$(echo "$DATA" | jq -r '.current.wind_speed_10m')" >> "$GITHUB_OUTPUT"
-          echo "RAIN=$(echo "$DATA" | '.daily.precipitation_probability_max[0]')" >> "$GITHUB_OUTPUT"
+          echo "RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')" >> "$GITHUB_OUTPUT"
 
       - name: Verstuur naar Discord
         env:
@@ -34,7 +34,6 @@ jobs:
           RAIN: ${{ steps.weather.outputs.RAIN }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Maak een veilig JSON-bestand aan met jq om syntax-fouten te voorkomen
           jq -n \
             --arg title "☀️ Dagelijks Weerbericht" \
             --arg temp "$TEMP°C (Voelt als $FEEL°C)" \
@@ -54,7 +53,6 @@ jobs:
               }]
             }' > discord_payload.json
 
-          # Verstuur het JSON-bestand naar de webhook
           curl -H "Content-Type: application/json" \
                -X POST \
                -d @discord_payload.json \
