@@ -38,11 +38,4 @@ jobs:
           RAIN: ${{ steps.weather.outputs.RAIN }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
-        run: |
-          jq -n \
-            --arg content "🌞 Goedemorgen Nederland
-
-🌡️ Temperatuur: ${TEMP}°C
-🤔 Voelt als: ${FEEL}°C
-🌧️ Regen: ${RAIN}%
-💨 Wind: ${WIND} km/u            
+        
