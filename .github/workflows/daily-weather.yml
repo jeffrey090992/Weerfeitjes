@@ -45,10 +45,4 @@ jobs:
 🌡️ Temperatuur: ${TEMP}°C
 🤔 Voelt als: ${FEEL}°C
 🌧️ Regen: ${RAIN}%
-💨 Wind: ${WIND} km/u
-
-🌦️ Weerfeitje: ${FACT}" \
-            '{content: $content}' | \
-          curl -X POST "$WEBHOOK" \
-            -H "Content-Type: application/json" \
-            -d @-
+💨 Wind: ${WIND} km/u            
