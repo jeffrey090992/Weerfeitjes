@@ -1,5 +1,3 @@
-name: Dagelijks Weerbericht
-
 on:
   schedule:
     - cron: "0 8 * * *"
@@ -8,7 +6,6 @@ on:
 jobs:
   send-weather-report:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,7 +20,6 @@ jobs:
         id: weather
         run: |
           DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&current=temperature_2m,apparent_temperature,wind_speed_10m&daily=precipitation_probability_max&timezone=Europe%2FAmsterdam")
-
           echo "TEMP=$(echo "$DATA" | jq -r '.current.temperature_2m')" >> "$GITHUB_OUTPUT"
           echo "FEEL=$(echo "$DATA" | jq -r '.current.apparent_temperature')" >> "$GITHUB_OUTPUT"
           echo "WIND=$(echo "$DATA" | jq -r '.current.wind_speed_10m')" >> "$GITHUB_OUTPUT"
@@ -37,5 +33,19 @@ jobs:
           WIND: ${{ steps.weather.outputs.WIND }}
           RAIN: ${{ steps.weather.outputs.RAIN }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-
-        
+        run: |
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d '{
+                 "embeds": [{
+                   "title": "☀️ Dagelijks Weerbericht",
+                   "color": 3447003,
+                   "fields": [
+                     {"name": "Temperatuur", "value": "'"$TEMP"'°C (Voelt als '"$FEEL"'°C)", "inline": true},
+                     {"name": "Windkracht", "value": "'"$WIND"' km/h", "inline": true},
+                     {"name": "Kans op regen", "value": "'"$RAIN"'%", "inline": true},
+                     {"name": "Weerfeitje van de dag", "value": "'"$FACT"'"}
+                   ]
+                 }]
+               }' \
+               "$WEBHOOK"
