@@ -22,12 +22,12 @@ jobs:
           echo "FACT<<EOF" >> $GITHUB_OUTPUT
           echo "$SELECTED_FACT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Verzend naar Discord
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          curl -H "Content-Type: application/json" \
-          -X POST "$WEBHOOK" \
-          -d "{\"content\":\"$FACT\"}"
+          curl -X POST "$WEBHOOK" \
+          -H "Content-Type: application/json" \
+          -d "$(jq -n --arg content "$FACT" '{content: $content}')"
+      
