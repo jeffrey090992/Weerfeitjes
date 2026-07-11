@@ -18,30 +18,28 @@ jobs:
           DATA=$(curl -s "https://api.open-meteo.com/v1/astronomy?latitude=52.13&longitude=5.29&daily=cloud_cover_mean&timezone=Europe%2FAmsterdam")
           CLOUDS=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
           
-          # 2. Haal de actuele maanfase op (verlichte fractie tussen 0.0 en 1.0)
-          DATE_NOW=$(date +%Y-%m-%d)
-          MOON_DATA=$(curl -s "https://api.met.no/weatherapi/sunrise/3.0/sunmoon?lat=52.13&lon=5.29&date=$DATE_NOW&offset=+02:00")
-          MOON_ILLUM=$(echo "$MOON_DATA" | jq -r '.properties.moon.illumination // 0')
+          # 2. Haal de actuele maanfase op via een stabiele astronomie-API
+          DATE_NOW=$(date +%m/%d/%Y)
+          MOON_DATA=$(curl -s "https://aa.usno.navy.mil/api/rstt/oneday?date=$DATE_NOW&coords=52.13,5.29&tz=2")
+          
+          # Haal de tekstuele fase en het verlichte percentage op
+          MOON_PHASE_ENG=$(echo "$MOON_DATA" | jq -r '.properties.curphase // "Unknown"')
+          MOON_PCT=$(echo "$MOON_DATA" | jq -r '.properties.fracillum // "0"' | tr -d '%')
 
-          # Maanfase vertalen naar tekst en emoji
-          if (( $(echo "$MOON_ILLUM < 0.05" | bc -l) )); then
-            MAAN_FASE="🌑 Nieuwe Maan (Perfect voor diepe sterrenkijken)"
-          elif (( $(echo "$MOON_ILLUM < 0.45" | bc -l) )); then
-            MAAN_FASE="🌒 Wassende Sikkel (Weinig lichtvervuiling)"
-          elif (( $(echo "$MOON_ILLUM < 0.55" | bc -l) )); then
-            MAAN_FASE="🌓 Eerste Kwartier (Matige lichtvervuiling)"
-          elif (( $(echo "$MOON_ILLUM < 0.95" | bc -l) )); then
-            MAAN_FASE="🌔 Wassende Maan (Veel lichtvervuiling)"
-          elif (( $(echo "$MOON_ILLUM <= 1.0" | bc -l) )); then
-            MAAN_FASE="🌕 Volle Maan (Veel lichtvervuiling, sterren minder goed zichtbaar)"
-          else
-            MAAN_FASE="🌙 Maanfase onbekend"
-          fi
+          # Maanfase vertalen naar Nederlands en emoji
+          case "$MOON_PHASE_ENG" in
+            "New Moon") MAAN_FASE="🌑 Nieuwe Maan (Perfect voor diepe sterrenkijken)" ;;
+            "Waxing Crescent") MAAN_FASE="🌒 Wassende Sikkel (Weinig lichtvervuiling)" ;;
+            "First Quarter") MAAN_FASE="🌓 Eerste Kwartier (Matige lichtvervuiling)" ;;
+            "Waxing Gibbous") MAAN_FASE="🌔 Wassende Maan (Veel lichtvervuiling)" ;;
+            "Full Moon") MAAN_FASE="🌕 Volle Maan (Veel lichtvervuiling, sterren minder goed zichtbaar)" ;;
+            "Waning Gibbous") MAAN_FASE="🌖 Krimpende Maan (Veel lichtvervuiling in de vroege ochtend)" ;;
+            "Last Quarter") MAAN_FASE="🌗 Laatste Kwartier (Maan komt pas laat op)" ;;
+            "Waning Crescent") MAAN_FASE="🌘 Krimpende Sikkel (Prima zicht in de avond)" ;;
+            *) MAAN_FASE="🌙 Maanfase: $MOON_PHASE_ENG" ;;
+          esac
 
-          # Procentuele weergave maken (bijv. 52%)
-          MOON_PCT=$(awk "BEGIN {print int($MOON_ILLUM * 100)}")
-
-          # 3. Sterrenkijk-score berekenen (max 10, aftrek op basis van wolken én maanlicht)
+          # 3. Sterrenkijk-score berekenen (max 10)
           SCORE=10
           
           # Aftrek voor wolken
@@ -50,8 +48,8 @@ jobs:
           elif (( $(echo "$CLOUDS > 20" | bc -l) )); then SCORE=$((SCORE - 2));
           fi
 
-          # Aftrek voor felle maan (volle maan stoort het zicht op zwakke sterren)
-          if (( $(echo "$MOON_ILLUM > 0.85" | bc -l) )) && [ $SCORE -gt 2 ]; then
+          # Aftrek voor felle maan (boven 85% verlicht)
+          if [ "$MOON_PCT" -gt 85 ] && [ $SCORE -gt 2 ]; then
             SCORE=$((SCORE - 2))
           fi
 
