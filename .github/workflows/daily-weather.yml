@@ -29,7 +29,7 @@ jobs:
           echo "WIND=$(echo "$DATA" | jq -r '.current.wind_speed_10m')" >> "$GITHUB_OUTPUT"
           echo "RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')" >> "$GITHUB_OUTPUT"
 
-      - name: Verstuur naar Discord
+      -       - name: Verstuur naar Discord
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           TEMP: ${{ steps.weather.outputs.TEMP }}
@@ -39,8 +39,8 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
         run: |
-        jq -n \
-  --arg content "🌞 **Goedemorgen Nederland**
+          MESSAGE=$(cat <<EOF
+🌞 **Goedemorgen Nederland**
 
 🌡️ Temperatuur: ${TEMP}°C
 🤔 Voelt als: ${FEEL}°C
@@ -48,9 +48,13 @@ jobs:
 💨 Wind: ${WIND} km/u
 
 🌦️ Weerfeitje:
-${FACT}" \
-  '{content: $content}' | \
-curl -X POST "$WEBHOOK" \
-  -H "Content-Type: application/json" \
-  -d @-
-          
+${FACT}
+EOF
+          )
+
+          jq -n \
+            --arg content "$MESSAGE" \
+            '{content: $content}' | \
+          curl -X POST "$WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d @-
