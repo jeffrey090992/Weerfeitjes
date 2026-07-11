@@ -3,7 +3,7 @@ on:
     - cron: "0 8 * * *"
   workflow_dispatch:
 jobs:
- send-weather-report:
+  send-weather-report:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
