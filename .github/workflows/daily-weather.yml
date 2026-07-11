@@ -39,18 +39,8 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
         run: |
-          MESSAGE="🌞 **Goedemorgen Nederland**
-
-🌡️ Temperatuur: ${TEMP}°C
-🤔 Voelt als: ${FEEL}°C
-🌧️ Regenkans: ${RAIN}%
-💨 Wind: ${WIND} km/u
-
-🌦️ Weerfeitje:
-${FACT}"
-
           jq -n \
-            --arg content "$MESSAGE" \
+            --arg content "🌞 **Goedemorgen Nederland**\n\n🌡️ Temperatuur: ${TEMP}°C\n🤔 Voelt als: ${FEEL}°C\n🌧️ Regenkans: ${RAIN}%\n💨 Wind: ${WIND} km/u\n\n🌦️ Weerfeitje:\n${FACT}" \
             '{content: $content}' | \
           curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
