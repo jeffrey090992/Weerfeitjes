@@ -1,0 +1,64 @@
+on:
+  schedule:
+    - cron: "0 17 * * 5" # Elke vrijdag om 19:00 uur Nederlandse tijd (17:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  stargazing-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Bereken sterrenkijk-score
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # Haal maanfase en bewolking op voor de komende nacht
+          DATA=$(curl -s "https://api.open-meteo.com/v1/astronomy?latitude=52.13&longitude=5.29&daily=cloud_cover_mean,moonrise,moonset&timezone=Europe%2FAmsterdam")
+          
+          CLOUDS=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
+          
+          # Open-Meteo geeft geen directe 'fase' in tekst, maar we berekenen de score op basis van bewolking
+          # Hoe minder wolken, hoe hoger de score (start bij 10)
+          SCORE=10
+          
+          if (( $(echo "$CLOUDS > 80" | bc -l) )); then SCORE=2;
+          elif (( $(echo "$CLOUDS > 60" | bc -l) )); then SCORE=4;
+          elif (( $(echo "$CLOUDS > 40" | bc -l) )); then SCORE=6;
+          elif (( $(echo "$CLOUDS > 20" | bc -l) )); then SCORE=8;
+          fi
+
+          # Tekst bepalen op basis van score
+          if [ $SCORE -ge 8 ]; then
+            ADVIES="🔭 **Perfecte nacht!** Het is zo goed als onbewolkt. Pak je telescoop of verrekijker erbij!"
+            COLOR=1752220 # Groen
+          elif [ $SCORE -ge 5 ]; then
+            ADVIES="🌤️ **Redelijke omstandigheden:** Er zijn wat wolkenvelden ($CLOUDS% bewolking), maar tussendoor kun je prima sterrenkijken."
+            COLOR=15105570 # Oranje
+          else
+            ADVIES="☁️ **Geen goede nacht:** Te veel bewolking ($CLOUDS%). Je kunt beter binnen blijven."
+            COLOR=12582912 # Rood
+          fi
+
+          jq -n \
+            --arg title "🔭 Sterrenkijk-weerbericht voor het Weekend" \
+            --arg score "Score voor vannacht: $SCORE/10" \
+            --arg advies "$ADVIES" \
+            --arg color "$COLOR" \
+            '{
+              embeds: [{
+                title: $title,
+                description: $advies,
+                color: ($color | tonumber),
+                fields: [
+                  {name: "📊 Kwaliteit van de nacht", value: $score, inline: true}
+                ],
+                footer: { text: "Clear skies!" }
+              }]
+            }' > discord_star_payload.json
+
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d @discord_star_payload.json \
+               "$WEBHOOK"
