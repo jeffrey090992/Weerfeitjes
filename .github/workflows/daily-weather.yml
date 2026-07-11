@@ -42,7 +42,7 @@ jobs:
           echo "SUNRISE=$SUNRISE" >> "$GITHUB_OUTPUT"
           echo "SUNSET=$SUNSET" >> "$GITHUB_OUTPUT"
 
-            - name: Test output
+      - name: Test output
         run: |
           echo "FACT=${{ steps.fact.outputs.FACT }}"
           echo "TEMP=${{ steps.weather.outputs.TEMP }}"
