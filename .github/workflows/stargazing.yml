@@ -14,30 +14,39 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # 1. Haal de bewolking op via Open-Meteo
-          DATA=$(curl -s "https://api.open-meteo.com/v1/astronomy?latitude=52.13&longitude=5.29&daily=cloud_cover_mean&timezone=Europe%2FAmsterdam")
+          # We halen nu alle data (bewolking én de exacte astronomische maanfase) uit dezelfde stabiele API
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=cloud_cover_mean,moon_phase&timezone=Europe%2FAmsterdam")
+          
           CLOUDS=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
-          
-          # 2. Haal de actuele maanfase op via een stabiele astronomie-API
-          DATE_NOW=$(date +%m/%d/%Y)
-          MOON_DATA=$(curl -s "https://aa.usno.navy.mil/api/rstt/oneday?date=$DATE_NOW&coords=52.13,5.29&tz=2")
-          
-          # Haal de tekstuele fase en het verlichte percentage op
-          MOON_PHASE_ENG=$(echo "$MOON_DATA" | jq -r '.properties.curphase // "Unknown"')
-          MOON_PCT=$(echo "$MOON_DATA" | jq -r '.properties.fracillum // "0"' | tr -d '%')
+          MOON_PHASE_NUM=$(echo "$DATA" | jq -r '.daily.moon_phase[0]')
 
-          # Maanfase vertalen naar Nederlands en emoji
-          case "$MOON_PHASE_ENG" in
-            "New Moon") MAAN_FASE="🌑 Nieuwe Maan (Perfect voor diepe sterrenkijken)" ;;
-            "Waxing Crescent") MAAN_FASE="🌒 Wassende Sikkel (Weinig lichtvervuiling)" ;;
-            "First Quarter") MAAN_FASE="🌓 Eerste Kwartier (Matige lichtvervuiling)" ;;
-            "Waxing Gibbous") MAAN_FASE="🌔 Wassende Maan (Veel lichtvervuiling)" ;;
-            "Full Moon") MAAN_FASE="🌕 Volle Maan (Veel lichtvervuiling, sterren minder goed zichtbaar)" ;;
-            "Waning Gibbous") MAAN_FASE="🌖 Krimpende Maan (Veel lichtvervuiling in de vroege ochtend)" ;;
-            "Last Quarter") MAAN_FASE="🌗 Laatste Kwartier (Maan komt pas laat op)" ;;
-            "Waning Crescent") MAAN_FASE="🌘 Krimpende Sikkel (Prima zicht in de avond)" ;;
-            *) MAAN_FASE="🌙 Maanfase: $MOON_PHASE_ENG" ;;
-          esac
+          # Open-Meteo geeft een getal tussen 0 en 100 voor de maanfase. 
+          # Dit zetten we om naar de juiste benaming en het verlichtingspercentage.
+          if (( $(echo "$MOON_PHASE_NUM == 0" | bc -l) )); then
+            MAAN_FASE="🌑 Nieuwe Maan"
+            MOON_PCT=0
+          elif (( $(echo "$MOON_PHASE_NUM > 0" | bc -l) )) && (( $(echo "$MOON_PHASE_NUM < 25" | bc -l) )); then
+            MAAN_FASE="🌒 Wassende Sikkel"
+            MOON_PCT=$(( MOON_PHASE_NUM * 4 ))
+          elif (( $(echo "$MOON_PHASE_NUM == 25" | bc -l) )); then
+            MAAN_FASE="🌓 Eerste Kwartier"
+            MOON_PCT=50
+          elif (( $(echo "$MOON_PHASE_NUM > 25" | bc -l) )) && (( $(echo "$MOON_PHASE_NUM < 50" | bc -l) )); then
+            MAAN_FASE="🌔 Wassende Maan"
+            MOON_PCT=$(( (MOON_PHASE_NUM - 25) * 2 + 50 ))
+          elif (( $(echo "$MOON_PHASE_NUM == 50" | bc -l) )); then
+            MAAN_FASE="🌕 Volle Maan"
+            MOON_PCT=100
+          elif (( $(echo "$MOON_PHASE_NUM > 50" | bc -l) )) && (( $(echo "$MOON_PHASE_NUM < 75" | bc -l) )); then
+            MAAN_FASE="🌖 Krimpende Maan"
+            MOON_PCT=$(( 100 - (MOON_PHASE_NUM - 50) * 2 ))
+          elif (( $(echo "$MOON_PHASE_NUM == 75" | bc -l) )); then
+            MAAN_FASE="🌗 Laatste Kwartier"
+            MOON_PCT=50
+          else
+            MAAN_FASE="🌘 Krimpende Sikkel"
+            MOON_PCT=$(( (100 - MOON_PHASE_NUM) * 4 ))
+          fi
 
           # 3. Sterrenkijk-score berekenen (max 10)
           SCORE=10
@@ -53,7 +62,6 @@ jobs:
             SCORE=$((SCORE - 2))
           fi
 
-          # Zorg dat score niet onder de 1 zakt
           if [ $SCORE -lt 1 ]; then SCORE=1; fi
 
           # Advies bepalen
