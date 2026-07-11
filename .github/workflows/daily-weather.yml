@@ -17,28 +17,20 @@ jobs:
         id: fact
         run: |
           FACT=$(shuf -n 1 facts.txt)
-          echo "FACT<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$FACT" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          echo "FACT=$FACT" >> "$GITHUB_OUTPUT"
 
       - name: Haal weer op voor Nederland
         id: weather
         run: |
           DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&current=temperature_2m,apparent_temperature,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FAmsterdam")
 
-          TEMP=$(echo "$DATA" | jq -r '.current.temperature_2m')
-          FEEL=$(echo "$DATA" | jq -r '.current.apparent_temperature')
-          WIND=$(echo "$DATA" | jq -r '.current.wind_speed_10m')
-          MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
-          MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
-          RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
-
-          echo "TEMP=$TEMP" >> "$GITHUB_OUTPUT"
-          echo "FEEL=$FEEL" >> "$GITHUB_OUTPUT"
-          echo "WIND=$WIND" >> "$GITHUB_OUTPUT"
-          echo "MIN=$MIN" >> "$GITHUB_OUTPUT"
-          echo "MAX=$MAX" >> "$GITHUB_OUTPUT"
-          echo "RAIN=$RAIN" >> "$GITHUB_OUTPUT"
+          echo "TEMP=$(echo "$DATA" | jq -r '.current.temperature_2m')" >> "$GITHUB_OUTPUT"
+          echo "FEEL=$(echo "$DATA" | jq -r '.current.apparent_temperature')" >> "$GITHUB_OUTPUT"
+          echo "WIND=$(echo "$DATA" | jq -r '.current.wind_speed_10m')" >> "$GITHUB_OUTPUT"
+          echo "MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')" >> "$GITHUB_OUTPUT"
+          echo "MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')" >> "$GITHUB_OUTPUT"
+          echo "RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')" >> "$GITHUB_OUTPUT"
 
       - name: Haal zon tijden op
         id: sun
@@ -48,8 +40,11 @@ jobs:
           SUNRISE=$(echo "$DATA" | jq -r '.results.sunrise')
           SUNSET=$(echo "$DATA" | jq -r '.results.sunset')
 
-          echo "SUNRISE=$(date -d "$SUNRISE" +"%H:%M")" >> "$GITHUB_OUTPUT"
-          echo "SUNSET=$(date -d "$SUNSET" +"%H:%M")" >> "$GITHUB_OUTPUT"
+          SUNRISE=$(date -d "$SUNRISE UTC" +"%H:%M")
+          SUNSET=$(date -d "$SUNSET UTC" +"%H:%M")
+
+          echo "SUNRISE=$SUNRISE" >> "$GITHUB_OUTPUT"
+          echo "SUNSET=$SUNSET" >> "$GITHUB_OUTPUT"
 
       - name: Verstuur naar Discord
         env:
@@ -65,7 +60,28 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
         run: |
-          MESSAGE="🌞 Goedemorgen Nederland!\n\n🌦️ Weerbericht\n\n🌡️ Temperatuur:\nNu: ${TEMP}°C\nVoelt als: ${FEEL}°C\nVandaag: ${MIN}°C - ${MAX}°C\n\n🌧️ Regenkans:\n${RAIN}%\n\n💨 Wind:\n${WIND} km/u\n\n☀️ Zon:\n🌅 Opkomst: ${SUNRISE}\n🌇 Onder: ${SUNSET}\n\n🌦️ Weerfeitje:\n${FACT}"
+          MESSAGE=$(printf "🌞 Goedemorgen Nederland!
+
+🌦️ Weerbericht
+
+🌡️ Temperatuur:
+Nu: %s°C
+Voelt als: %s°C
+Vandaag: %s°C - %s°C
+
+🌧️ Regenkans:
+%s%%
+
+💨 Wind:
+%s km/u
+
+☀️ Zon:
+🌅 Opkomst: %s
+🌇 Onder: %s
+
+🌦️ Weerfeitje:
+%s" \
+          "$TEMP" "$FEEL" "$MIN" "$MAX" "$RAIN" "$WIND" "$SUNRISE" "$SUNSET" "$FACT")
 
           jq -n --arg content "$MESSAGE" '{content: $content}' | \
           curl -X POST "$WEBHOOK" \
