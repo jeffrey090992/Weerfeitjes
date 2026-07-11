@@ -40,16 +40,14 @@ jobs:
 
         run: |
           jq -n \
-            --arg content "$(printf '🌞 **Goedemorgen Nederland**
-
-🌡️ Temperatuur: %s°C
-🤔 Voelt als: %s°C
-🌧️ Regenkans: %s%%
-💨 Wind: %s km/u
-
-🌦️ Weerfeitje:
-%s' "$TEMP" "$FEEL" "$RAIN" "$WIND" "$FACT")" \
-            '{content: $content}' | \
+            --arg content "🌞 **Goedemorgen Nederland**" \
+            --arg temp "🌡️ Temperatuur: ${TEMP}°C" \
+            --arg feel "🤔 Voelt als: ${FEEL}°C" \
+            --arg rain "🌧️ Regenkans: ${RAIN}%" \
+            --arg wind "💨 Wind: ${WIND} km/u" \
+            --arg fact "🌦️ Weerfeitje:
+${FACT}" \
+            '{content: ($content + "\n\n" + $temp + "\n" + $feel + "\n" + $rain + "\n" + $wind + "\n\n" + $fact)}' | \
           curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
             -d @-
