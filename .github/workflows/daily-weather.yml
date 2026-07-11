@@ -47,25 +47,32 @@ jobs:
           SUN_HOURS=$(awk "BEGIN {print $SUN_SEC/3600}")
           SUN_HOURS_ROUND=$(printf "%.1f" $SUN_HOURS)
 
-          # Sneeuwregel bouwen
-          SNOW_TXT=""
+          # Sneeuwtekst bepalen
           if (( $(echo "$SNOW_CM > 0" | bc -l) )); then
-            SNOW_TXT="\\n❄️ Verwachte Sneeuw: $SNOW_CM cm"
+            SNOW_LINE="\n❄️ Verwachte Sneeuw: $SNOW_CM cm"
+          else
+            SNOW_LINE=""
           fi
 
           TEMP_TXT="$VANDAAG_MIN°C tot $VANDAAG_MAX°C"
           RAIN_TXT="$VANDAAG_RAIN_PROB%"
           ZON_TXT="🌅 $ZON_OP  |  🌇 $ZON_ONDER"
-          
-          # We gebruiken hier dubbele backslashes (\\n) zodat Bash het als platte tekst doorgeeft aan jq
-          EXTRA_DETAILS="☀️ UV-Index: $UV_MAX\\n🕒 Uren zon: $SUN_HOURS_ROUND uur\\n☁️ Gem. bewolking: $CLOUDS%\\n🌧️ Hoeveelheid regen: $RAIN_MM mm ($RAIN_HOURS uur regen)\\n🌬️ Constante wind: $WIND_SPEED km/h ($WIND_DIR°)\\n💨 Max. windstoot: $WIND_GUSTS km/h$SNOW_TXT"
 
+          # We maken de enters nu rechtstreeks via jq door een array aan te maken en deze te joinen met een echte newline (\n)
           jq -n \
             --arg title "📅 Weersverwachting voor Vandaag" \
             --arg temp "$TEMP_TXT" \
             --arg rain "$RAIN_TXT" \
             --arg zon "$ZON_TXT" \
-            --arg extra "$EXTRA_DETAILS" \
+            --arg uv "$UV_MAX" \
+            --arg zon_uren "$SUN_HOURS_ROUND" \
+            --arg clouds "$CLOUDS" \
+            --arg rain_mm "$RAIN_MM" \
+            --arg rain_h "$RAIN_HOURS" \
+            --arg wind_s "$WIND_SPEED" \
+            --arg wind_d "$WIND_DIR" \
+            --arg wind_g "$WIND_GUSTS" \
+            --arg snow "$SNOW_LINE" \
             --arg fact "$FACT" \
             '{
               embeds: [{
@@ -75,7 +82,14 @@ jobs:
                   {name: "Verwachte Temperatuur", value: $temp, inline: true},
                   {name: "Kans op regen vandaag", value: $rain, inline: true},
                   {name: "Zon (Op / Onder)", value: $zon, inline: false},
-                  {name: "Extra details voor vandaag", value: $extra, inline: false},
+                  {name: "Extra details voor vandaag", value: ([
+                    "☀️ UV-Index: " + $uv,
+                    "🕒 Uren zon: " + $zon_uren + " uur",
+                    "☁️ Gem. bewolking: " + $clouds + "%",
+                    "🌧️ Hoeveelheid regen: " + $rain_mm + " mm (" + $rain_h + " uur regen)",
+                    "🌬️ Constante wind: " + $wind_s + " km/h (" + $wind_d + "°)",
+                    "💨 Max. windstoot: " + $wind_g + " km/h" + $snow
+                  ] | join("\n")), inline: false},
                   {name: "Weerfeitje van de dag", value: $fact}
                 ]
               }]
