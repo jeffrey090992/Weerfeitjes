@@ -1,0 +1,51 @@
+on:
+  schedule:
+    - cron: "0 */3 * * *" # Draait elke 3 uur
+  workflow_dispatch:
+
+jobs:
+  check-aurora:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Controleer Kp-index van NOAA
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # Haal de actuele 3-uurlijkse Kp-index op via NOAA
+          KP_DATA=$(curl -s "https://services.swpc.noaa.gov/products/noaa-scales.json")
+          
+          # Filter de huidige Kp-waarde uit de geomagnetische storm data (G-schaal naar Kp)
+          # We pakken de meest recente waarde uit de array
+          G_SCALE=$(echo "$KP_DATA" | jq -r '.geomagnetic.current.scale // "0"' | tr -d 'G')
+          
+          # G0 = Kp < 5, G1 = Kp 5, G2 = Kp 6, G3 = Kp 7, enzovoort.
+          if [ "$G_SCALE" != "0" ] && [ "$G_SCALE" != "null" ]; then
+            # Er is een actieve zonnestorm (G1 of hoger)
+            KP_ESTIMATED=$((G_SCALE + 4))
+            
+            ALERT_MSG="🚨 **Noorderlicht Alert!** Er is momenteel een zonnestorm actief met een kracht van **Kp $KP_ESTIMATED** (G$G_SCALE). Als het vanavond onbewolkt is, loont het absoluut de moeite om op een donkere plek naar het noorden te kijken of te fotograferen met een lange sluitertijd!"
+            COLOR=5763719 # Mooi noorderlicht groen
+            
+            jq -n \
+              --arg title "🌌 Noorderlicht Waarschuwing Actief" \
+              --arg desc "$ALERT_MSG" \
+              --arg color "$COLOR" \
+              '{
+                embeds: [{
+                  title: $title,
+                  description: $desc,
+                  color: ($color | tonumber),
+                  footer: { text: "Data via NOAA Space Weather Prediction Center" }
+                }]
+              }' > discord_aurora_payload.json
+
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d @discord_aurora_payload.json \
+                 "$WEBHOOK"
+          else
+            echo "Kp-index is momenteel laag (onder de 5). Geen melding nodig."
+          fi
