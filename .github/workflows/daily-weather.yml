@@ -40,17 +40,15 @@ jobs:
 
         run: |
           jq -n \
-            --arg content "🌞 **Goedemorgen Nederland**
+            --arg content "🌞 Goedemorgen Nederland
 
 🌡️ Temperatuur: ${TEMP}°C
 🤔 Voelt als: ${FEEL}°C
-🌧️ Regenkans: ${RAIN}%
+🌧️ Regen: ${RAIN}%
 💨 Wind: ${WIND} km/u
 
-🌦️ Weerfeitje:
-${FACT}" \
-            '{content: $content}' > discord.json
-
-          curl -i -X POST "$WEBHOOK" \
+🌦️ Weerfeitje: ${FACT}" \
+            '{content: $content}' | \
+          curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
-            --data-binary @discord.json
+            -d @-
