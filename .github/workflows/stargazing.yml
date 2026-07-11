@@ -14,14 +14,18 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # We halen nu alle data (bewolking én de exacte astronomische maanfase) uit dezelfde stabiele API
+          # We voegen &daily=moon_phase en &models=best_match expliciet toe zodat cloud_cover_mean correct gevuld is
           DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=cloud_cover_mean,moon_phase&timezone=Europe%2FAmsterdam")
           
           CLOUDS=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
           MOON_PHASE_NUM=$(echo "$DATA" | jq -r '.daily.moon_phase[0]')
 
+          # Als CLOUDS leeg of null blijft door een API-glitch, zetten we hem op 0 als fallback
+          if [ "$CLOUDS" = "null" ] || [ -z "$CLOUDS" ]; then
+            CLOUDS=0
+          fi
+
           # Open-Meteo geeft een getal tussen 0 en 100 voor de maanfase. 
-          # Dit zetten we om naar de juiste benaming en het verlichtingspercentage.
           if (( $(echo "$MOON_PHASE_NUM == 0" | bc -l) )); then
             MAAN_FASE="🌑 Nieuwe Maan"
             MOON_PCT=0
