@@ -57,7 +57,7 @@ jobs:
           echo "☀️ Opkomst: $SUNRISE" >> message.txt
           echo "🌇 Onder: $SUNSET" >> message.txt
           echo "🌦️ Weerfeitje: $FACT" >> message.txt
-      - name:"Verstuur naar Discord"
+      - name: Verstuur naar Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
