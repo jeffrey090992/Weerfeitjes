@@ -1,0 +1,56 @@
+on:
+  schedule:
+    - cron: "0 7 * * *" # Elke ochtend om 09:00 uur Nederlandse tijd (07:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  check-iss:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Controleer ISS en bewolking
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # We halen de bewolking voor komende nacht op via de astronomie API
+          WEATHER_DATA=$(curl -s "https://api.open-meteo.com/v1/astronomy?latitude=52.13&longitude=5.29&daily=cloud_cover_low,cloud_cover_mid,cloud_cover_high&timezone=Europe%2FAmsterdam")
+          
+          # Gemiddelde lage en middelbare bewolking (meest kritiek voor zicht)
+          LOW_CLOUDS=$(echo "$WEATHER_DATA" | jq -r '.daily.cloud_cover_low[0]')
+          MID_CLOUDS=$(echo "$WEATHER_DATA" | jq -r '.daily.cloud_cover_mid[0]')
+          AVG_CLOUDS=$(( (LOW_CLOUDS + MID_CLOUDS) / 2 ))
+
+          # We simuleren hier een check (wheretheiss heeft actuele data, we berekenen of de bewolking goed is)
+          if [ $AVG_CLOUDS -le 40 ]; then
+            ZICHT="🌌 **Goed zicht verwacht!** De gemiddelde bewolking is vanavond slechts $AVG_CLOUDS%."
+            COLOR=3447003 # Blauw
+          else
+            ZICHT="☁️ **Slecht zicht:** Er is veel bewolking ($AVG_CLOUDS%), dus de kans is klein dat je hem ziet."
+            COLOR=8421504 # Grijs
+          fi
+
+          # Omdat exacte ISS-passages lokaal erg complex zijn om live te berekenen, 
+          # linken we direct naar de officiële Heavens-Above pagina voor de exacte minuten.
+          jq -n \
+            --arg title "🚀 ISS Tracker: Komt het ruimtestation over?" \
+            --arg zicht "$ZICHT" \
+            --arg color "$COLOR" \
+            '{
+              embeds: [{
+                title: $title,
+                description: $zicht,
+                color: ($color | tonumber),
+                fields: [
+                  {name: "💡 Tip", value: "Het ISS ziet eruit als een hele felle, snel bewegende ster zonder knipperende lichten.", inline: false},
+                  {name: "⏰ Exacte tijden voor jouw locatie", value: "[Bekijk de passages op Heavens-Above](https://www.heavens-above.com/PassSummary.aspx?lat=52.13&lng=5.29&tz=CET)", inline: false}
+                ],
+                footer: { text: "Kijk vanavond omhoog!" }
+              }]
+            }' > discord_iss_payload.json
+
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d @discord_iss_payload.json \
+               "$WEBHOOK"
