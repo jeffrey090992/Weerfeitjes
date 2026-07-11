@@ -39,8 +39,18 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
         run: |
-          CONTENT="🌞 **Goedemorgen Nederland**%0A%0A🌡️ Temperatuur: ${TEMP}°C%0A🤔 Voelt als: ${FEEL}°C%0A🌧️ Regenkans: ${RAIN}%%0A💨 Wind: ${WIND} km/u%0A%0A🌦️ Weerfeitje:%0A${FACT}"
+          jq -n \
+            --arg content "🌞 **Goedemorgen Nederland**
 
-          curl -X POST "$WEBHOOK" \
+🌡️ Temperatuur: ${TEMP}°C
+🤔 Voelt als: ${FEEL}°C
+🌧️ Regenkans: ${RAIN}%
+💨 Wind: ${WIND} km/u
+
+🌦️ Weerfeitje:
+${FACT}" \
+            '{content: $content}' > discord.json
+
+          curl -i -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
-            -d "{\"content\":\"${CONTENT}\"}"
+            --data-binary @discord.json
