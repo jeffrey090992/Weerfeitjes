@@ -1,22 +1,34 @@
-# 🌤️ Weerfeitjes
 
-Dagelijks weerfeitje op Discord via GitHub Actions!
+name: Dagelijks Weerfeitje
 
-## Setup
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
 
-1. **Discord Webhook Secret toevoegen:**
-   - Settings → Secrets and variables → Actions
-   - New repository secret
-   - Name: `DISCORD_WEBHOOK`
-   - Value: Je Discord Webhook URL
+jobs:
+  send-weather-fact:
+    runs-on: ubuntu-latest
 
-2. **Weerfeitjes toevoegen:**
-   - Edit `.github/workflows/daily-weather.yml`
-   - Vul de FACTS array in met jouw feitjes
+    steps:
+      - name: Select Random Weather Fact
+        id: fact
+        run: |
+          FACTS=(
+            "🌧️ test 1"
+            "⚡ Feitje 2"
+          )
 
-3. **Testen:**
-   - Actions → Dagelijks Weerfeitje → Run workflow
+          RANDOM_INDEX=$((RANDOM % ${#FACTS[@]}))
+          SELECTED_FACT="${FACTS[$RANDOM_INDEX]}"
 
-Done! 🚀
-[Create workflow file](.github/workflows/daily-weather.yml)
-# Workflow File
+          echo "FACT=$SELECTED_FACT" >> $GITHUB_OUTPUT
+
+      - name: Verzend naar Discord
+        env:
+          FACT: ${{ steps.fact.outputs.FACT }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -X POST "$WEBHOOK" \
+          -H "Content-Type: application/json" \
+          -d "$(jq -n --arg content "$FACT" '{content: $content}')"
