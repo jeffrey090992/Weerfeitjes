@@ -35,17 +35,41 @@ jobs:
         id: sun
         run: |
           DATA=$(curl -s "https://api.sunrise-sunset.org/json?lat=52.13&lng=5.29&formatted=0")
-
-          echo "SUNRISE=$(echo "$DATA" | jq -r '.results.sunrise')" >> "$GITHUB_OUTPUT"
-          echo "SUNSET=$(echo "$DATA" | jq -r '.results.sunset')" >> "$GITHUB_OUTPUT"
-
       - name: Maak Discord bericht
+        env:
+          FACT: ${{ steps.fact.outputs.FACT }}
+          TEMP: ${{ steps.weather.outputs.TEMP }}
+          FEEL: ${{ steps.weather.outputs.FEEL }}
+          MIN: ${{ steps.weather.outputs.MIN }}
+          MAX: ${{ steps.weather.outputs.MAX }}
+          RAIN: ${{ steps.weather.outputs.RAIN }}
+          WIND: ${{ steps.weather.outputs.WIND }}
+          SUNRISE: ${{ steps.sun.outputs.SUNRISE }}
+          SUNSET: ${{ steps.sun.outputs.SUNSET }}
         run: |
-          cat > message.json <<EOF
-          {
-            "content": "🌞 Goedemorgen Nederland!\n\n🌦️ Weerbericht\n\n🌡️ Temperatuur:\nNu: ${{ steps.weather.outputs.TEMP }}°C\nVoelt als: ${{ steps.weather.outputs.FEEL }}°C\nVandaag: ${{ steps.weather.outputs.MIN }}°C - ${{ steps.weather.outputs.MAX }}°C\n\n🌧️ Regenkans:\n${{ steps.weather.outputs.RAIN }}%\n\n💨 Wind:\n${{ steps.weather.outputs.WIND }} km/u\n\n☀️ Zon:\n🌅 Opkomst: ${{ steps.sun.outputs.SUNRISE }}\n🌇 Onder: ${{ steps.sun.outputs.SUNSET }}\n\n🌦️ Weerfeitje:\n${{ steps.fact.outputs.FACT }}"
-          }
-          EOF
+          jq -n \
+            --arg content "🌞 Goedemorgen Nederland!
+
+🌦️ Weerbericht
+
+🌡️ Temperatuur:
+Nu: ${TEMP}°C
+Voelt als: ${FEEL}°C
+Vandaag: ${MIN}°C - ${MAX}°C
+
+🌧️ Regenkans:
+${RAIN}%
+
+💨 Wind:
+${WIND} km/u
+
+☀️ Zon:
+🌅 Opkomst: ${SUNRISE}
+🌇 Onder: ${SUNSET}
+
+🌦️ Weerfeitje:
+${FACT}" \
+            '{content: $content}' > message.json
 
       - name: Verstuur naar Discord
         env:
@@ -54,3 +78,7 @@ jobs:
           curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
             --data @message.json
+          echo "SUNRISE=$(echo "$DATA" | jq -r '.results.sunrise')" >> "$GITHUB_OUTPUT"
+          echo "SUNSET=$(echo "$DATA" | jq -r '.results.sunset')" >> "$GITHUB_OUTPUT"
+
+      - 
