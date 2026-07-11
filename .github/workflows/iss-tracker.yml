@@ -1,40 +1,39 @@
 on:
   schedule:
-    - cron: "0 7 * * *" # Elke ochtend om 09:00 uur Nederlandse tijd (07:00 UTC)
+    - cron: "0 16 * * *" # Elke middag om 17:00 uur Nederlandse tijd (16:00 UTC) om te checken voor de avond
   workflow_dispatch:
 
 jobs:
-  check-iss:
+  space-tracker:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Controleer ISS en bewolking
+      - name: Controleer ISS en voeg Starlink toe
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # We halen de bewolking voor komende nacht op via de astronomie API
-          WEATHER_DATA=$(curl -s "https://api.open-meteo.com/v1/astronomy?latitude=52.13&longitude=5.29&daily=cloud_cover_low,cloud_cover_mid,cloud_cover_high&timezone=Europe%2FAmsterdam")
-          
-          # Gemiddelde lage en middelbare bewolking (meest kritiek voor zicht)
-          LOW_CLOUDS=$(echo "$WEATHER_DATA" | jq -r '.daily.cloud_cover_low[0]')
-          MID_CLOUDS=$(echo "$WEATHER_DATA" | jq -r '.daily.cloud_cover_mid[0]')
-          AVG_CLOUDS=$(( (LOW_CLOUDS + MID_CLOUDS) / 2 ))
+          # 1. Haal de bewolking op voor komende nacht via de astronomie API
+          WEATHER_DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=cloud_cover_mean&timezone=Europe%2FAmsterdam")
+          CLOUDS=$(echo "$WEATHER_DATA" | jq -r '.daily.cloud_cover_mean[0]')
 
-          # We simuleren hier een check (wheretheiss heeft actuele data, we berekenen of de bewolking goed is)
-          if [ $AVG_CLOUDS -le 40 ]; then
-            ZICHT="🌌 **Goed zicht verwacht!** De gemiddelde bewolking is vanavond slechts $AVG_CLOUDS%."
+          # Gemiddelde bewolking controleren voor het zicht
+          if [ "$CLOUDS" = "null" ] || [ -z "$CLOUDS" ]; then
+            CLOUDS=0
+          fi
+
+          if [ "$CLOUDS" -le 40 ]; then
+            ZICHT="🌌 **Goed zicht verwacht!** De gemiddelde bewolking is vanavond slechts $CLOUDS%."
             COLOR=3447003 # Blauw
           else
-            ZICHT="☁️ **Slecht zicht:** Er is veel bewolking ($AVG_CLOUDS%), dus de kans is klein dat je hem ziet."
+            ZICHT="☁️ **Slecht zicht:** Er is redelijk wat bewolking ($CLOUDS%), dus de kans is kleiner dat je ze goed ziet."
             COLOR=8421504 # Grijs
           fi
 
-          # Omdat exacte ISS-passages lokaal erg complex zijn om live te berekenen, 
-          # linken we direct naar de officiële Heavens-Above pagina voor de exacte minuten.
+          # 2. Payload bouwen met beide trackers gecombineerd via jq
           jq -n \
-            --arg title "🚀 ISS Tracker: Komt het ruimtestation over?" \
+            --arg title "🚀 Ruimtevaart Tracker: ISS & Starlink" \
             --arg zicht "$ZICHT" \
             --arg color "$COLOR" \
             '{
@@ -43,14 +42,22 @@ jobs:
                 description: $zicht,
                 color: ($color | tonumber),
                 fields: [
-                  {name: "💡 Tip", value: "Het ISS ziet eruit als een hele felle, snel bewegende ster zonder knipperende lichten.", inline: false},
-                  {name: "⏰ Exacte tijden voor jouw locatie", value: "[Bekijk de passages op Heavens-Above](https://www.heavens-above.com/PassSummary.aspx?lat=52.13&lng=5.29&tz=CET)", inline: false}
+                  {
+                    name: "🛰️ 1. Internationaal Ruimtestation (ISS)", 
+                    value: "Het ISS trekt over als een hele felle, snelle stip zonder knipperende lichten.\n👉 [Bekijk exacte tijden op Heavens-Above](https://www.heavens-above.com/PassSummary.aspx?lat=52.13&lng=5.29&tz=CET)", 
+                    inline: false
+                  },
+                  {
+                    name: "✨ 2. Starlink Satelliet-treintjes", 
+                    value: "Als SpaceX recent een nieuwe lading heeft gelanceerd, trekken ze als een strakke lijn van sterren achter elkaar aan door de lucht.\n👉 [Bekijk live passages op FindStarlink](https://findstarlink.com/#52.13,5.29;3)", 
+                    inline: false
+                  }
                 ],
-                footer: { text: "Kijk vanavond omhoog!" }
+                footer: { text: "Kijk vanavond omhoog! Clear skies!" }
               }]
-            }' > discord_iss_payload.json
+            }' > discord_space_payload.json
 
           curl -H "Content-Type: application/json" \
                -X POST \
-               -d @discord_iss_payload.json \
+               -d @discord_space_payload.json \
                "$WEBHOOK"
