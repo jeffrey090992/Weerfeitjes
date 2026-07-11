@@ -57,15 +57,26 @@ jobs:
           RAIN_TXT="$VANDAAG_RAIN_PROB%"
           ZON_TXT="🌅 $ZON_OP  |  🌇 $ZON_ONDER"
           
-          # Het uitgebreide details-blok
-          EXTRA_TXT="☀️ UV-Index: $UV_MAX\n🕒 Uren zon: $SUN_HOURS_ROUND uur\n☁️ Gem. bewolking: $CLOUDS%\n🌧️ Hoeveelheid regen: $RAIN_MM mm ($RAIN_HOURS uur regen)\n🌬️ Constante wind: $WIND_SPEED km/h ($WIND_DIR°)\n💨 Max. windstoot: $WIND_GUSTS km/h$SNOW_TXT"
+          # Het uitgebreide details-blok, met verbeterde regeleinden
+          # Let op: de jq -n constructie moet dit goed verwerken.
+          # We creëren de volledige string in Bash en gebruiken \n voor regeleinden.
+          
+          EXTRA_DETAILS="☀️ UV-Index: $UV_MAX
+🕒 Uren zon: $SUN_HOURS_ROUND uur
+☁️ Gem. bewolking: $CLOUDS%
+🌧️ Hoeveelheid regen: $RAIN_MM mm ($RAIN_HOURS uur regen)
+🌬️ Constante wind: $WIND_SPEED km/h ($WIND_DIR°)
+💨 Max. windstoot: $WIND_GUSTS km/h$SNOW_TXT"
+
+          # We gebruiken nu jq -n met --argjson om de volledige JSON objecten te creëren.
+          # We definiëren eerst de velden als Bash variabelen, en gebruiken ze in de jq query.
 
           jq -n \
             --arg title "📅 Weersverwachting voor Vandaag" \
             --arg temp "$TEMP_TXT" \
             --arg rain "$RAIN_TXT" \
             --arg zon "$ZON_TXT" \
-            --arg extra "$EXTRA_TXT" \
+            --arg extra "$EXTRA_DETAILS" \
             --arg fact "$FACT" \
             '{
               embeds: [{
