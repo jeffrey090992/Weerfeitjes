@@ -15,14 +15,16 @@ jobs:
 
       - name: Select Random Weather Fact
         id: fact
+        shell: bash
         run: |
           FACT=$(shuf -n 1 facts.txt)
-          echo "FACT=$FACT" >> $GITHUB_OUTPUT
+          echo "FACT=$FACT" >> "$GITHUB_OUTPUT"
 
       - name: Verzend naar Discord
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        shell: bash
         run: |
           curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
