@@ -35,7 +35,7 @@ jobs:
         id: sun
         run: |
           DATA=$(curl -s "https://api.sunrise-sunset.org/json?lat=52.13&lng=5.29&formatted=0")
-            - name: Maak Discord bericht
+                - name: Maak Discord bericht
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           TEMP: ${{ steps.weather.outputs.TEMP }}
@@ -48,24 +48,16 @@ jobs:
           SUNSET: ${{ steps.sun.outputs.SUNSET }}
         run: |
           echo "🌞 Goedemorgen Nederland!" > message.txt
-          echo "" >> message.txt
           echo "🌦️ Weerbericht" >> message.txt
-          echo "" >> message.txt
           echo "🌡️ Temperatuur: $TEMP°C" >> message.txt
           echo "Voelt als: $FEEL°C" >> message.txt
           echo "Vandaag: $MIN°C - $MAX°C" >> message.txt
-          echo "" >> message.txt
           echo "🌧️ Regenkans: $RAIN%" >> message.txt
           echo "💨 Wind: $WIND km/u" >> message.txt
-          echo "" >> message.txt
-          echo "☀️ Zon:" >> message.txt
-          echo "🌅 Opkomst: $SUNRISE" >> message.txt
+          echo "☀️ Opkomst: $SUNRISE" >> message.txt
           echo "🌇 Onder: $SUNSET" >> message.txt
-          echo "" >> message.txt
-          echo "🌦️ Weerfeitje:" >> message.txt
-          echo "$FACT" >> message.txt
-
-      - name: Verstuur naar Discord
+          echo "🌦️ Weerfeitje: $FACT" >> message.txt
+      - name="Verstuur naar Discord"
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
@@ -73,3 +65,4 @@ jobs:
           curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
             -d @message.json
+        
