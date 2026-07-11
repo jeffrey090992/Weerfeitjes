@@ -59,7 +59,8 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
         run: |
-          MESSAGE="🌞 Goedemorgen Nederland!
+          MESSAGE=$(cat <<EOF
+🌞 Goedemorgen Nederland!
 
 🌦️ Weerbericht
 
@@ -79,7 +80,9 @@ ${WIND} km/u
 🌇 Onder: ${SUNSET}
 
 🌦️ Weerfeitje:
-${FACT}"
+${FACT}
+EOF
+)
 
           jq -n --arg content "$MESSAGE" '{content: $content}' | \
           curl -X POST "$WEBHOOK" \
