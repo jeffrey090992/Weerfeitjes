@@ -2,7 +2,7 @@ name: Dagelijks Weerfeitje
 
 on:
   schedule:
-    - cron: '0 8 * * *'
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
 jobs:
@@ -15,17 +15,12 @@ jobs:
 
       - name: Select Random Weather Fact
         id: fact
-        shell: bash
         run: |
           FACT=$(shuf -n 1 facts.txt)
           echo "FACT=$FACT" >> "$GITHUB_OUTPUT"
 
       - name: Verzend naar Discord
-        env:
-          FACT: ${{ steps.fact.outputs.FACT }}
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        shell: bash
         run: |
-          curl -X POST "$WEBHOOK" \
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg content "$FACT" '{content: $content}')"
+            -d "$(jq -n --arg content '${{ steps.fact.outputs.FACT }}' '{content: $content}')"
