@@ -10,18 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Select Random Weather Fact
-        id: fact
-        run: |
-          FACTS=(
-            "🌧️ test 1"
-            "⚡ Feitje 2"
-          )
-          RANDOM_INDEX=$((RANDOM % ${#FACTS[@]}))
-          SELECTED_FACT="${FACTS[$RANDOM_INDEX]}"
-          echo "FACT<<EOF" >> $GITHUB_OUTPUT
-          echo "$SELECTED_FACT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+    - name: Select Random Weather Fact
+  id: fact
+  run: |
+    FACT=$(shuf -n 1 facts.txt)
+    echo "FACT=$FACT" >> $GITHUB_OUTPUT
       - name: Verzend naar Discord
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
