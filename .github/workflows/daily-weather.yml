@@ -21,26 +21,51 @@ jobs:
           FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # API-link uitgebreid met sunrise en sunset
-          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Europe%2FAmsterdam")
+          # API-link uitgebreid met alle gevraagde opties
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_gusts_10m_max,sunshine_duration,precipitation_sum,snowfall_sum,precipitation_hours,cloud_cover_mean,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FAmsterdam")
           
+          # Basis gegevens
           VANDAAG_MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           VANDAAG_MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
-          VANDAAG_RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
+          VANDAAG_RAIN_PROB=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
           
-          # Tijden uit de API halen (en inkorten zodat alleen de uren en minuten overblijven)
           ZON_OP=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
           ZON_ONDER=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
+          
+          # Extra gegevens
+          UV_MAX=$(echo "$DATA" | jq -r '.daily.uv_index_max[0]')
+          WIND_GUSTS=$(echo "$DATA" | jq -r '.daily.wind_gusts_10m_max[0]')
+          WIND_SPEED=$(echo "$DATA" | jq -r '.daily.wind_speed_10m_max[0]')
+          WIND_DIR=$(echo "$DATA" | jq -r '.daily.wind_direction_10m_dominant[0]')
+          CLOUDS=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
+          RAIN_MM=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
+          RAIN_HOURS=$(echo "$DATA" | jq -r '.daily.precipitation_hours[0]')
+          SNOW_CM=$(echo "$DATA" | jq -r '.daily.snowfall_sum[0]')
+          
+          # Zonneschijn omrekenen naar uren
+          SUN_SEC=$(echo "$DATA" | jq -r '.daily.sunshine_duration[0]')
+          SUN_HOURS=$(awk "BEGIN {print $SUN_SEC/3600}")
+          SUN_HOURS_ROUND=$(printf "%.1f" $SUN_HOURS)
+
+          # Sneeuwregel bouwen (alleen tonen als er echt sneeuw valt)
+          SNOW_TXT=""
+          if (( $(echo "$SNOW_CM > 0" | bc -l) )); then
+            SNOW_TXT="\n❄️ Verwachte Sneeuw: $SNOW_CM cm"
+          fi
 
           TEMP_TXT="$VANDAAG_MIN°C tot $VANDAAG_MAX°C"
-          RAIN_TXT="$VANDAAG_RAIN%"
+          RAIN_TXT="$VANDAAG_RAIN_PROB%"
           ZON_TXT="🌅 $ZON_OP  |  🌇 $ZON_ONDER"
+          
+          # Het uitgebreide details-blok
+          EXTRA_TXT="☀️ UV-Index: $UV_MAX\n🕒 Uren zon: $SUN_HOURS_ROUND uur\n☁️ Gem. bewolking: $CLOUDS%\n🌧️ Hoeveelheid regen: $RAIN_MM mm ($RAIN_HOURS uur regen)\n🌬️ Constante wind: $WIND_SPEED km/h ($WIND_DIR°)\n💨 Max. windstoot: $WIND_GUSTS km/h$SNOW_TXT"
 
           jq -n \
             --arg title "📅 Weersverwachting voor Vandaag" \
             --arg temp "$TEMP_TXT" \
             --arg rain "$RAIN_TXT" \
             --arg zon "$ZON_TXT" \
+            --arg extra "$EXTRA_TXT" \
             --arg fact "$FACT" \
             '{
               embeds: [{
@@ -50,6 +75,7 @@ jobs:
                   {name: "Verwachte Temperatuur", value: $temp, inline: true},
                   {name: "Kans op regen vandaag", value: $rain, inline: true},
                   {name: "Zon (Op / Onder)", value: $zon, inline: false},
+                  {name: "Extra details voor vandaag", value: $extra, inline: false},
                   {name: "Weerfeitje van de dag", value: $fact}
                 ]
               }]
