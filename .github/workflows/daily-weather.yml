@@ -35,50 +35,41 @@ jobs:
         id: sun
         run: |
           DATA=$(curl -s "https://api.sunrise-sunset.org/json?lat=52.13&lng=5.29&formatted=0")
-      - name: Maak Discord bericht
+            - name: Maak Discord bericht
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           TEMP: ${{ steps.weather.outputs.TEMP }}
           FEEL: ${{ steps.weather.outputs.FEEL }}
+          WIND: ${{ steps.weather.outputs.WIND }}
           MIN: ${{ steps.weather.outputs.MIN }}
           MAX: ${{ steps.weather.outputs.MAX }}
           RAIN: ${{ steps.weather.outputs.RAIN }}
-          WIND: ${{ steps.weather.outputs.WIND }}
           SUNRISE: ${{ steps.sun.outputs.SUNRISE }}
           SUNSET: ${{ steps.sun.outputs.SUNSET }}
         run: |
-          jq -n \
-            --arg content "🌞 Goedemorgen Nederland!
-
-🌦️ Weerbericht
-
-🌡️ Temperatuur:
-Nu: ${TEMP}°C
-Voelt als: ${FEEL}°C
-Vandaag: ${MIN}°C - ${MAX}°C
-
-🌧️ Regenkans:
-${RAIN}%
-
-💨 Wind:
-${WIND} km/u
-
-☀️ Zon:
-🌅 Opkomst: ${SUNRISE}
-🌇 Onder: ${SUNSET}
-
-🌦️ Weerfeitje:
-${FACT}" \
-            '{content: $content}' > message.json
+          echo "🌞 Goedemorgen Nederland!" > message.txt
+          echo "" >> message.txt
+          echo "🌦️ Weerbericht" >> message.txt
+          echo "" >> message.txt
+          echo "🌡️ Temperatuur: $TEMP°C" >> message.txt
+          echo "Voelt als: $FEEL°C" >> message.txt
+          echo "Vandaag: $MIN°C - $MAX°C" >> message.txt
+          echo "" >> message.txt
+          echo "🌧️ Regenkans: $RAIN%" >> message.txt
+          echo "💨 Wind: $WIND km/u" >> message.txt
+          echo "" >> message.txt
+          echo "☀️ Zon:" >> message.txt
+          echo "🌅 Opkomst: $SUNRISE" >> message.txt
+          echo "🌇 Onder: $SUNSET" >> message.txt
+          echo "" >> message.txt
+          echo "🌦️ Weerfeitje:" >> message.txt
+          echo "$FACT" >> message.txt
 
       - name: Verstuur naar Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          jq -Rs '{content: .}' message.txt > message.json
           curl -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
-            --data @message.json
-          echo "SUNRISE=$(echo "$DATA" | jq -r '.results.sunrise')" >> "$GITHUB_OUTPUT"
-          echo "SUNSET=$(echo "$DATA" | jq -r '.results.sunset')" >> "$GITHUB_OUTPUT"
-
-      - 
+            -d @message.json
