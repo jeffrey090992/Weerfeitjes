@@ -1,0 +1,70 @@
+name: KNMI Records naar Discord
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+jobs:
+  records:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python instellen
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Installeer packages
+        run: |
+          pip install -r requirements.txt
+
+      - name: Bereken records
+        run: |
+          python scripts/calculate_records.py
+
+      - name: Verstuur naar Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          WARM=$(jq -r '.warmste_dag.temperatuur' records.json)
+          WARM_DATE=$(jq -r '.warmste_dag.datum' records.json)
+          WARM_STATION=$(jq -r '.warmste_dag.station' records.json)
+
+          COLD=$(jq -r '.koudste_dag.temperatuur' records.json)
+          COLD_DATE=$(jq -r '.koudste_dag.datum' records.json)
+
+          jq -n \
+          --arg warm "$WARM" \
+          --arg warm_date "$WARM_DATE" \
+          --arg station "$WARM_STATION" \
+          --arg cold "$COLD" \
+          --arg cold_date "$COLD_DATE" \
+          '{
+            embeds: [{
+              title: "🇳🇱 Nederlandse weerrecords",
+              color: 3447003,
+              fields: [
+                {
+                  name: "🔥 Warmste dag",
+                  value: ($warm + "°C\n📅 " + $warm_date + "\n📍 Station " + $station)
+                },
+                {
+                  name: "❄️ Koudste dag",
+                  value: ($cold + "°C\n📅 " + $cold_date)
+                }
+              ]
+            }]
+          }' > discord.json
+
+          curl \
+          -H "Content-Type: application/json" \
+          -X POST \
+          -d @discord.json \
+          "$WEBHOOK"
