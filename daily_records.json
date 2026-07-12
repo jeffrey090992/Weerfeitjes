@@ -1,0 +1,18 @@
+{
+    "datum": "12-07",
+    "warmste": {
+        "datum": "geen data",
+        "station": "onbekend",
+        "waarde": null
+    },
+    "koudste": {
+        "datum": "geen data",
+        "station": "onbekend",
+        "waarde": null
+    },
+    "natste": {
+        "datum": "geen data",
+        "station": "onbekend",
+        "waarde": null
+    }
+}
