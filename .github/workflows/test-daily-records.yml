@@ -7,6 +7,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Repository ophalen
         uses: actions/checkout@v4
@@ -19,3 +22,14 @@ jobs:
       - name: Dagrecords maken
         run: |
           python scripts/daily_records.py
+
+      - name: Opslaan
+        run: |
+          git config --global user.name "Dagrecords Bot"
+          git config --global user.email "actions@github.com"
+
+          git add daily_records.json
+
+          git commit -m "Update dagelijkse records" || exit 0
+
+          git push
