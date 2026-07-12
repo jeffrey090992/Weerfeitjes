@@ -18,8 +18,8 @@ def zoek_record(kolom, volgorde):
     cursor.execute(f"""
         SELECT datum, station, {kolom}
         FROM measurements
-        WHERE substr(CAST(datum AS TEXT), 5, 2) = ?
-        AND substr(CAST(datum AS TEXT), 7, 2) = ?
+        WHERE substr(REPLACE(datum,'-',''),5,2)=?
+        AND substr(REPLACE(datum,'-',''),7,2)=?
         ORDER BY {kolom} {volgorde}
         LIMIT 1
     """, (maand, dag))
@@ -27,38 +27,33 @@ def zoek_record(kolom, volgorde):
     return cursor.fetchone()
 
 
-warmste = zoek_record("temp_max", "DESC")
-koudste = zoek_record("temp_min", "ASC")
-natste = zoek_record("regen", "DESC")
-
-conn.close()
-
-
-def maak_record(data):
-    if data:
+def maak_record(record):
+    if record:
         return {
-            "datum": data[0],
-            "station": data[1],
-            "waarde": data[2]
+            "datum": record[0],
+            "station": record[1],
+            "waarde": record[2]
         }
-    else:
-        return {
-            "datum": "geen data",
-            "station": "onbekend",
-            "waarde": None
-        }
+
+    return {
+        "datum": "geen data",
+        "station": "onbekend",
+        "waarde": None
+    }
 
 
 records = {
     "datum": f"{dag}-{maand}",
-    "warmste": maak_record(warmste),
-    "koudste": maak_record(koudste),
-    "natste": maak_record(natste)
+    "warmste": maak_record(zoek_record("temp_max", "DESC")),
+    "koudste": maak_record(zoek_record("temp_min", "ASC")),
+    "natste": maak_record(zoek_record("regen", "DESC"))
 }
 
 
-with open(OUTPUT, "w", encoding="utf-8") as bestand:
-    json.dump(records, bestand, indent=4, ensure_ascii=False)
+conn.close()
 
+
+with open(OUTPUT, "w", encoding="utf-8") as f:
+    json.dump(records, f, indent=4, ensure_ascii=False)
 
 print("Dagrecords gemaakt")
