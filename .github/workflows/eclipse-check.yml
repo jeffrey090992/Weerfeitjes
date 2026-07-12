@@ -11,15 +11,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Code ophalen
+        uses: actions/checkout@v4
+
+      - name: Python installeren
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
-      - run: pip install -r requirements.txt
+      - name: Pakketten installeren
+        run: |
+          pip install -r requirements.txt
 
-      - name: Controle
+      - name: Eclipse controle
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: python eclipse_check.py
+        run: |
+          python eclipse_check.py
