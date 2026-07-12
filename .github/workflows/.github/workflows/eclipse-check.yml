@@ -1,0 +1,40 @@
+name: Eclipse Nederland melding
+
+on:
+
+  schedule:
+    - cron: "0 7 * * *"
+
+  workflow_dispatch:
+
+
+jobs:
+
+  eclipse-check:
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+
+    - name: Repository ophalen
+      uses: actions/checkout@v4
+
+
+    - name: Python installeren
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+
+    - name: Dependencies installeren
+      run: |
+        pip install -r requirements.txt
+
+
+    - name: Controle uitvoeren
+      env:
+        WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+
+      run:
+        python eclipse_check.py
