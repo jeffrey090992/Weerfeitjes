@@ -1,3 +1,5 @@
+name: Daily Weather
+
 on:
   schedule:
     - cron: "0 8 * * *"
@@ -6,9 +8,17 @@ on:
 jobs:
   send-weather-report:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Installeer Python pakketten
+        run: |
+          pip install -r requirements.txt
 
       - name: Kies weerfeitje
         id: fact
@@ -16,23 +26,25 @@ jobs:
           FACT=$(shuf -n 1 facts.txt)
           echo "FACT=$FACT" >> "$GITHUB_OUTPUT"
 
+      - name: Maak dagrecords
+        run: |
+          python scripts/daily_records.py
+
       - name: Haal weersverwachting op en verstuur naar Discord
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # API-link met alle opties
+
           DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_gusts_10m_max,sunshine_duration,precipitation_sum,snowfall_sum,precipitation_hours,cloud_cover_mean,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FAmsterdam")
-          
-          # Basis gegevens
+
           VANDAAG_MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           VANDAAG_MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           VANDAAG_RAIN_PROB=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
-          
+
           ZON_OP=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
           ZON_ONDER=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
-          
-          # Extra gegevens
+
           UV_MAX=$(echo "$DATA" | jq -r '.daily.uv_index_max[0]')
           WIND_GUSTS=$(echo "$DATA" | jq -r '.daily.wind_gusts_10m_max[0]')
           WIND_SPEED=$(echo "$DATA" | jq -r '.daily.wind_speed_10m_max[0]')
@@ -41,24 +53,36 @@ jobs:
           RAIN_MM=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
           RAIN_HOURS=$(echo "$DATA" | jq -r '.daily.precipitation_hours[0]')
           SNOW_CM=$(echo "$DATA" | jq -r '.daily.snowfall_sum[0]')
-          
-          # Zonneschijn omrekenen naar uren
+
           SUN_SEC=$(echo "$DATA" | jq -r '.daily.sunshine_duration[0]')
           SUN_HOURS=$(awk "BEGIN {print $SUN_SEC/3600}")
           SUN_HOURS_ROUND=$(printf "%.1f" $SUN_HOURS)
 
-          # Sneeuwtekst bepalen
           if (( $(echo "$SNOW_CM > 0" | bc -l) )); then
-            SNOW_LINE="\n❄️ Verwachte Sneeuw: $SNOW_CM cm"
+            SNOW_LINE="\n❄️ Verwachte sneeuw: $SNOW_CM cm"
           else
             SNOW_LINE=""
           fi
 
+
+          # Dagrecords ophalen
+          RECORD_DATE=$(jq -r '.datum' daily_records.json)
+
+          WARM_TEMP=$(jq -r '.warmste.waarde' daily_records.json)
+          WARM_DATE=$(jq -r '.warmste.datum' daily_records.json)
+
+          COLD_TEMP=$(jq -r '.koudste.waarde' daily_records.json)
+          COLD_DATE=$(jq -r '.koudste.datum' daily_records.json)
+
+          RAIN_RECORD=$(jq -r '.natste.waarde' daily_records.json)
+          RAIN_DATE=$(jq -r '.natste.datum' daily_records.json)
+
+
           TEMP_TXT="$VANDAAG_MIN°C tot $VANDAAG_MAX°C"
           RAIN_TXT="$VANDAAG_RAIN_PROB%"
-          ZON_TXT="🌅 $ZON_OP  |  🌇 $ZON_ONDER"
+          ZON_TXT="🌅 $ZON_OP | 🌇 $ZON_ONDER"
 
-          # We maken de enters nu rechtstreeks via jq door een array aan te maken en deze te joinen met een echte newline (\n)
+
           jq -n \
             --arg title "📅 Weersverwachting voor Vandaag" \
             --arg temp "$TEMP_TXT" \
@@ -74,26 +98,69 @@ jobs:
             --arg wind_g "$WIND_GUSTS" \
             --arg snow "$SNOW_LINE" \
             --arg fact "$FACT" \
-            '{
-              embeds: [{
-                title: $title,
-                color: 3447003,
-                fields: [
-                  {name: "Verwachte Temperatuur", value: $temp, inline: true},
-                  {name: "Kans op regen vandaag", value: $rain, inline: true},
-                  {name: "Zon (Op / Onder)", value: $zon, inline: false},
-                  {name: "Extra details voor vandaag", value: ([
-                    "☀️ UV-Index: " + $uv,
-                    "🕒 Uren zon: " + $zon_uren + " uur",
-                    "☁️ Gem. bewolking: " + $clouds + "%",
-                    "🌧️ Hoeveelheid regen: " + $rain_mm + " mm (" + $rain_h + " uur regen)",
-                    "🌬️ Constante wind: " + $wind_s + " km/h (" + $wind_d + "°)",
-                    "💨 Max. windstoot: " + $wind_g + " km/h" + $snow
-                  ] | join("\n")), inline: false},
-                  {name: "Weerfeitje van de dag", value: $fact}
-                ]
-              }]
-            }' > discord_payload.json
+            --arg record_date "$RECORD_DATE" \
+            --arg warm_temp "$WARM_TEMP" \
+            --arg warm_date "$WARM_DATE" \
+            --arg cold_temp "$COLD_TEMP" \
+            --arg cold_date "$COLD_DATE" \
+            --arg rain_record "$RAIN_RECORD" \
+            --arg rain_date "$RAIN_DATE" \
+'
+{
+  embeds: [{
+    title: $title,
+    color: 3447003,
+    fields: [
+
+      {
+        name: "🌡️ Verwachte temperatuur",
+        value: $temp,
+        inline: true
+      },
+
+      {
+        name: "🌧️ Kans op regen",
+        value: $rain,
+        inline: true
+      },
+
+      {
+        name: "🌅 Zon",
+        value: $zon,
+        inline: false
+      },
+
+      {
+        name: "📊 Dagrecords (" + $record_date + ")",
+        value:
+          "🔥 Warmste: " + $warm_temp + "°C (" + $warm_date + ")\n" +
+          "❄️ Koudste: " + $cold_temp + "°C (" + $cold_date + ")\n" +
+          "🌧️ Natste: " + $rain_record + " mm (" + $rain_date + ")",
+        inline: false
+      },
+
+      {
+        name: "📋 Extra details",
+        value:
+          "☀️ UV-index: " + $uv + "\n" +
+          "🕒 Zonuren: " + $zon_uren + " uur\n" +
+          "☁️ Bewolking: " + $clouds + "%\n" +
+          "🌧️ Regen: " + $rain_mm + " mm (" + $rain_h + " uur)\n" +
+          "🌬️ Wind: " + $wind_s + " km/h (" + $wind_d + "°)\n" +
+          "💨 Windstoten: " + $wind_g + " km/h" + $snow,
+        inline: false
+      },
+
+      {
+        name: "🧠 Weerfeitje",
+        value: $fact
+      }
+
+    ]
+  }]
+}
+' > discord_payload.json
+
 
           curl -H "Content-Type: application/json" \
                -X POST \
