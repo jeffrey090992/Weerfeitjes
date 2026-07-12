@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS measurements (
 )
 """)
 
-# KNMI stations (kan later uitgebreid worden)
+# KNMI stations
 stations = [
     260,  # De Bilt
     370,  # Eindhoven
@@ -29,11 +29,11 @@ stations = [
     344   # Rotterdam
 ]
 
+url = "https://www.daggegevens.knmi.nl/klimatologie/daggegevens"
+
 for station in stations:
 
     print(f"Download station {station}")
-
-    url = "https://www.daggegevens.knmi.nl/klimatologie/daggegevens"
 
     response = requests.post(
         url,
@@ -43,14 +43,28 @@ for station in stations:
         }
     )
 
+    if response.status_code != 200:
+        print(f"Fout bij station {station}")
+        continue
+
+    # KNMI data inlezen
     df = pd.read_csv(
         StringIO(response.text),
         comment="#",
-        sep=","
+        sep=",",
+        skipinitialspace=True
     )
+
+    print(df.head())
+    print(df.columns)
+
+    # Station toevoegen indien aanwezig
+    if "STN" in df.columns:
+        df.drop(columns=["STN"], inplace=True)
 
     df["station"] = station
 
+    # Kolommen hernoemen
     df.rename(
         columns={
             "YYYYMMDD": "datum",
@@ -61,11 +75,8 @@ for station in stations:
         inplace=True
     )
 
-    df["temp_max"] = df["temp_max"] / 10
-    df["temp_min"] = df["temp_min"] / 10
-    df["regen"] = df["regen"] / 10
-
-    df[
+    # Alleen benodigde gegevens
+    df = df[
         [
             "datum",
             "station",
@@ -73,12 +84,25 @@ for station in stations:
             "temp_min",
             "regen"
         ]
-    ].to_sql(
+    ]
+
+    # KNMI eenheden omrekenen
+    df["temp_max"] = pd.to_numeric(df["temp_max"], errors="coerce") / 10
+    df["temp_min"] = pd.to_numeric(df["temp_min"], errors="coerce") / 10
+    df["regen"] = pd.to_numeric(df["regen"], errors="coerce") / 10
+
+    # Lege regels verwijderen
+    df.dropna(inplace=True)
+
+    # Opslaan
+    df.to_sql(
         "measurements",
         conn,
         if_exists="append",
         index=False
     )
+
+    print(f"Station {station} klaar")
 
 
 conn.commit()
