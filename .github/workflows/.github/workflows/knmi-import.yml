@@ -1,0 +1,45 @@
+name: KNMI Historische Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 8 * * *"
+
+jobs:
+  knmi:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python instellen
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Installeer packages
+        run: |
+          pip install -r requirements.txt
+
+      - name: Maak database map
+        run: |
+          mkdir -p database
+
+      - name: KNMI data ophalen
+        run: |
+          python scripts/import_knmi.py
+
+      - name: Opslaan in repository
+        run: |
+          git config --global user.name "KNMI Bot"
+          git config --global user.email "actions@github.com"
+
+          git add database/knmi_weather.db
+
+          git commit -m "Update KNMI historie" || exit 0
+
+          git push
