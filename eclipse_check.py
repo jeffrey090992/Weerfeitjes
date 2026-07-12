@@ -4,62 +4,78 @@ from datetime import datetime, timedelta
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-# Nederlandse tijd
-NU = datetime.now()
-
-# Eclipsdata (UTC)
 ECLIPSES = [
     {
+        "id": "2026-03-03-moon",
         "type": "🌙 Maansverduistering",
         "datum": datetime(2026, 3, 3, 11, 33),
-        "zichtbaar": True
+        "locatie": "Nederland"
     },
     {
+        "id": "2026-08-12-sun",
         "type": "☀️ Zonsverduistering",
         "datum": datetime(2026, 8, 12, 17, 47),
-        "zichtbaar": True
+        "locatie": "Nederland"
     }
 ]
 
 
-def discord(tekst):
+def stuur_discord(bericht):
     if WEBHOOK:
         requests.post(
             WEBHOOK,
-            json={"content": tekst},
+            json={"content": bericht},
             timeout=10
         )
 
 
+def al_gemeld(eclipse_id):
+    if not os.path.exists("last_alert.txt"):
+        return False
+
+    with open("last_alert.txt") as f:
+        return f.read().strip() == eclipse_id
+
+
+def opslaan(eclipse_id):
+    with open("last_alert.txt", "w") as f:
+        f.write(eclipse_id)
+
+
 def controle():
+
+    nu = datetime.now()
 
     for eclipse in ECLIPSES:
 
-        verschil = eclipse["datum"] - NU
+        verschil = eclipse["datum"] - nu
 
-        # melding 24 uur vooraf
-        if timedelta(hours=23, minutes=50) < verschil < timedelta(hours=24, minutes=10):
+        # Alleen melden tussen 24 en 0 uur vooraf
+        if timedelta(0) < verschil <= timedelta(hours=24):
 
-            bericht = f"""
-🚨 **Eclipse Alert Nederland**
+            if not al_gemeld(eclipse["id"]):
 
-{eclipse['type']}
+                bericht = f"""
+🚨 **Astronomie waarschuwing Nederland**
 
-📅 Datum:
+{eclipse['type']} komt eraan!
+
+📅 Tijd:
 {eclipse['datum'].strftime('%d-%m-%Y %H:%M')}
 
-🇳🇱 Zichtbaar vanuit Nederland:
-{"Ja" if eclipse['zichtbaar'] else "Nee"}
+📍 Locatie:
+🇳🇱 {eclipse['locatie']}
 
-⏰ Dit is de 24 uur waarschuwing.
+⏰ Nog ongeveer:
+{verschil.days} dagen en {verschil.seconds//3600} uur
 """
 
-            discord(bericht)
+                stuur_discord(bericht)
+                opslaan(eclipse["id"])
 
-        elif verschil.days >= 0:
-            print(
-                f"{eclipse['type']} over {verschil.days} dagen"
-            )
+            return
+
+    print("Geen komende verduistering binnen 24 uur.")
 
 
 controle()
