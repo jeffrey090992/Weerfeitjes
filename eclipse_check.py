@@ -1,45 +1,65 @@
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-# Voorbeeld: NASA eclipse API endpoint (vervang eventueel door eigen bron)
-API_URL = "https://eclipse.gsfc.nasa.gov/SEsearch/SEsearchmap.php"
+# Nederlandse tijd
+NU = datetime.now()
 
-def stuur_discord(bericht):
+# Eclipsdata (UTC)
+ECLIPSES = [
+    {
+        "type": "🌙 Maansverduistering",
+        "datum": datetime(2026, 3, 3, 11, 33),
+        "zichtbaar": True
+    },
+    {
+        "type": "☀️ Zonsverduistering",
+        "datum": datetime(2026, 8, 12, 17, 47),
+        "zichtbaar": True
+    }
+]
+
+
+def discord(tekst):
     if WEBHOOK:
         requests.post(
             WEBHOOK,
-            json={"content": bericht},
+            json={"content": tekst},
             timeout=10
         )
 
-def controleer_eclipse():
 
-    vandaag = datetime.now().strftime("%d-%m-%Y")
+def controle():
 
-    # Hier kun je later echte berekening toevoegen
-    # Voor nu demo-resultaat:
-    eclipse = False
+    for eclipse in ECLIPSES:
 
-    if eclipse:
-        bericht = f"""
-🌙☀️ **Verduistering zichtbaar in Nederland!**
+        verschil = eclipse["datum"] - NU
 
-Datum:
-{vandaag}
+        # melding 24 uur vooraf
+        if timedelta(hours=23, minutes=50) < verschil < timedelta(hours=24, minutes=10):
 
-Locatie:
-🇳🇱 Nederland
+            bericht = f"""
+🚨 **Eclipse Alert Nederland**
 
-Controle:
-{datetime.now().strftime("%H:%M")}
+{eclipse['type']}
+
+📅 Datum:
+{eclipse['datum'].strftime('%d-%m-%Y %H:%M')}
+
+🇳🇱 Zichtbaar vanuit Nederland:
+{"Ja" if eclipse['zichtbaar'] else "Nee"}
+
+⏰ Dit is de 24 uur waarschuwing.
 """
-        stuur_discord(bericht)
 
-    else:
-        print("Geen verduistering gevonden")
+            discord(bericht)
+
+        elif verschil.days >= 0:
+            print(
+                f"{eclipse['type']} over {verschil.days} dagen"
+            )
 
 
-controleer_eclipse()
+controle()
