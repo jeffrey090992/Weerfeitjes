@@ -5,86 +5,105 @@ import pytz
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-TIMEZONE = pytz.timezone("Europe/Amsterdam")
+AMSTERDAM = pytz.timezone("Europe/Amsterdam")
 
-# Nederlandse locatie (midden Nederland)
-LOCATION = {
-    "country": "Nederland",
-    "visible": True
-}
-
-# Hier komen de astronomische gegevens binnen
-# Later te vervangen door automatische NASA/JPL data
+# Nederlandse zichtbare eclipsen
+# Wordt later vervangen door automatische astronomische data
 ECLIPSES = [
     {
         "id": "moon-2026-03-03",
         "type": "🌙 Maansverduistering",
-        "date": datetime(2026, 3, 3, 12, 33)
+        "date": "2026-03-03 12:33",
+        "visible": True
     },
     {
         "id": "sun-2026-08-12",
         "type": "☀️ Zonsverduistering",
-        "date": datetime(2026, 8, 12, 19, 47)
+        "date": "2026-08-12 19:47",
+        "visible": True
     }
 ]
 
 
 def send_discord(message):
-    if WEBHOOK:
-        requests.post(
-            WEBHOOK,
-            json={"content": message},
-            timeout=10
-        )
+    if not WEBHOOK:
+        print("Geen Discord webhook gevonden")
+        return
+
+    response = requests.post(
+        WEBHOOK,
+        json={"content": message},
+        timeout=10
+    )
+
+    print("Discord status:", response.status_code)
 
 
-def already_sent(eclipse_id):
-    if not os.path.exists("last_alert.txt"):
-        return False
+def load_last_alert():
+    if os.path.exists("last_alert.txt"):
+        with open("last_alert.txt") as f:
+            return f.read().strip()
 
-    with open("last_alert.txt") as file:
-        return eclipse_id == file.read().strip()
-
-
-def save_sent(eclipse_id):
-    with open("last_alert.txt", "w") as file:
-        file.write(eclipse_id)
+    return ""
 
 
-def check():
+def save_last_alert(eclipse_id):
+    with open("last_alert.txt", "w") as f:
+        f.write(eclipse_id)
 
-    now = datetime.now()
+
+def check_eclipse():
+
+    now = datetime.now(AMSTERDAM)
+
+    last_alert = load_last_alert()
 
     for eclipse in ECLIPSES:
 
-        difference = eclipse["date"] - now
+        eclipse_time = AMSTERDAM.localize(
+            datetime.strptime(
+                eclipse["date"],
+                "%Y-%m-%d %H:%M"
+            )
+        )
 
-        if timedelta(0) < difference <= timedelta(hours=24):
+        verschil = eclipse_time - now
 
-            if not already_sent(eclipse["id"]):
+        # Alleen Nederland + alleen 24 uur vooraf
+        if (
+            eclipse["visible"]
+            and timedelta(0) < verschil <= timedelta(hours=24)
+        ):
 
-                message = f"""
+            if last_alert != eclipse["id"]:
+
+                bericht = f"""
 🚨 **Eclipse Alert Nederland 🇳🇱**
 
 {eclipse['type']}
 
 📅 Datum:
-{eclipse['date'].strftime('%d-%m-%Y %H:%M')}
+{eclipse_time.strftime('%d-%m-%Y %H:%M')}
 
-📍 Gebied:
+📍 Zichtbaar:
 Nederland
 
 ⏰ Nog:
-{difference.seconds // 3600} uur
+{verschil.seconds // 3600} uur
 
-✅ Alleen zichtbaarheidscontrole Nederland
+🔭 Automatische controle actief
 """
 
-                send_discord(message)
-                save_sent(eclipse["id"])
+                send_discord(bericht)
+                save_last_alert(eclipse["id"])
 
-            break
+            else:
+                print("Melding al verstuurd")
+
+            return
+
+    print("Geen Nederlandse eclips binnen 24 uur")
 
 
 if __name__ == "__main__":
-    check()
+    check_eclipse()
