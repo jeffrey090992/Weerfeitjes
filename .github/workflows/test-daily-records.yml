@@ -1,0 +1,21 @@
+name: Test Dagrecords
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v4
+
+      - name: Python installeren
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Dagrecords maken
+        run: |
+          python scripts/daily_records.py
