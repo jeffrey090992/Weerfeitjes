@@ -2,23 +2,44 @@ import os
 import requests
 from datetime import datetime
 
-webhook = os.getenv("DISCORD_WEBHOOK")
+WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-bericht = f"""
-🌙☀️ Eclipse Check Nederland
+# Voorbeeld: NASA eclipse API endpoint (vervang eventueel door eigen bron)
+API_URL = "https://eclipse.gsfc.nasa.gov/SEsearch/SEsearchmap.php"
 
-Controle uitgevoerd:
-{datetime.now().strftime("%d-%m-%Y %H:%M")}
+def stuur_discord(bericht):
+    if WEBHOOK:
+        requests.post(
+            WEBHOOK,
+            json={"content": bericht},
+            timeout=10
+        )
+
+def controleer_eclipse():
+
+    vandaag = datetime.now().strftime("%d-%m-%Y")
+
+    # Hier kun je later echte berekening toevoegen
+    # Voor nu demo-resultaat:
+    eclipse = False
+
+    if eclipse:
+        bericht = f"""
+🌙☀️ **Verduistering zichtbaar in Nederland!**
+
+Datum:
+{vandaag}
 
 Locatie:
 🇳🇱 Nederland
+
+Controle:
+{datetime.now().strftime("%H:%M")}
 """
+        stuur_discord(bericht)
 
-if webhook:
-    requests.post(
-        webhook,
-        json={"content": bericht},
-        timeout=10
-    )
+    else:
+        print("Geen verduistering gevonden")
 
-print("Eclipse controle uitgevoerd")
+
+controleer_eclipse()
