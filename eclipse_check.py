@@ -2,20 +2,28 @@ import os
 import requests
 from datetime import datetime, timedelta
 import pytz
-from skyfield.api import load, wgs84
-from skyfield import almanac
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-tz = pytz.timezone("Europe/Amsterdam")
-
-# Nederland (Amsterdam)
-observer = wgs84.latlon(
-    52.3676,
-    4.9041
-)
+TZ = pytz.timezone("Europe/Amsterdam")
 
 LAST_ALERT = "last_alert.txt"
+
+# NASA eclipse kalender (toekomstige eclipsen)
+ECLIPSES = [
+    {
+        "id": "solar-2026-08-12",
+        "type": "☀️ Zonsverduistering",
+        "date": "2026-08-12 19:47",
+        "netherlands": False
+    },
+    {
+        "id": "lunar-2026-03-03",
+        "type": "🌙 Maansverduistering",
+        "date": "2026-03-03 12:33",
+        "netherlands": True
+    }
+]
 
 
 def send_discord(message):
@@ -27,74 +35,58 @@ def send_discord(message):
         )
 
 
-def already_sent(event):
+def already_sent(event_id):
     if not os.path.exists(LAST_ALERT):
         return False
 
     with open(LAST_ALERT) as f:
-        return f.read().strip() == event
+        return f.read().strip() == event_id
 
 
-def save_sent(event):
+def save_sent(event_id):
     with open(LAST_ALERT, "w") as f:
-        f.write(event)
+        f.write(event_id)
 
 
 def check():
 
-    ts = load.timescale()
-    eph = load("de421.bsp")
+    now = datetime.now(TZ)
 
-    now = datetime.now(tz)
+    for eclipse in ECLIPSES:
 
-    # komende periode bekijken
-    start = ts.now()
-    end = ts.utc(now.year + 2, 1, 1)
+        if not eclipse["netherlands"]:
+            continue
 
-    t, events = almanac.find_discrete(
-        start,
-        end,
-        almanac.eclipse_events(eph)
-    )
+        event_time = TZ.localize(
+            datetime.strptime(
+                eclipse["date"],
+                "%Y-%m-%d %H:%M"
+            )
+        )
 
-    for time, event in zip(t, events):
+        remaining = event_time - now
 
-        eclipse_time = time.utc_datetime().replace(
-            tzinfo=pytz.utc
-        ).astimezone(tz)
+        if timedelta(0) < remaining <= timedelta(hours=24):
 
-        verschil = eclipse_time - now
+            if not already_sent(eclipse["id"]):
 
-        if timedelta(0) < verschil <= timedelta(hours=24):
-
-            if event == 0:
-                soort = "☀️ Zonsverduistering"
-            else:
-                soort = "🌙 Maansverduistering"
-
-            naam = f"{soort}-{eclipse_time}"
-
-            if not already_sent(naam):
-
-                bericht = f"""
+                message = f"""
 🚨 **Eclipse Alert Nederland 🇳🇱**
 
-{soort}
+{eclipse['type']}
 
 📅 Datum:
-{eclipse_time.strftime('%d-%m-%Y %H:%M')}
+{event_time.strftime('%d-%m-%Y %H:%M')}
 
-📍 Controle locatie:
+📍 Zichtbaar:
 Nederland
 
 ⏰ Nog:
-{verschil.seconds // 3600} uur
-
-🔭 Astronomische berekening actief
+{remaining.seconds // 3600} uur
 """
 
-                send_discord(bericht)
-                save_sent(naam)
+                send_discord(message)
+                save_sent(eclipse["id"])
 
             return
 
