@@ -1,0 +1,12 @@
+name: Eclipse Check Nederland
+
+on:
+  workflow_dispatch:
+
+jobs:
+  eclipse-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test Eclipse workflow
+        run: echo "Eclipse workflow actief"
