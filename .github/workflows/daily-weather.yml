@@ -63,17 +63,12 @@ jobs:
           WET=$(jq -r '.natste.waarde' daily_records.json)
           WET_DATE=$(jq -r '.natste.datum' daily_records.json)
 
-
-          jq -n \
-            --arg fact "$FACT" \
+                jq -n \
+            --arg title "📅 Weersverwachting voor Vandaag" \
             --arg temp "$MIN°C tot $MAX°C" \
             --arg rain "$RAIN%" \
             --arg sun "🌅 $SUNRISE | 🌇 $SUNSET" \
-            --arg uv "$UV" \
-            --arg wind "$WIND" \
-            --arg gust "$GUST" \
-            --arg cloud "$CLOUD" \
-            --arg rainmm "$RAIN_MM" \
+            --arg fact "$FACT" \
             --arg record "$RECORD_DATE" \
             --arg warm "$WARM" \
             --arg warmdate "$WARM_DATE" \
@@ -81,59 +76,44 @@ jobs:
             --arg colddate "$COLD_DATE" \
             --arg wet "$WET" \
             --arg wetdate "$WET_DATE" \
-'
+            '
 {
-  embeds: [
-    {
-      title: "📅 Weersverwachting voor Vandaag",
-      color: 3447003,
-      fields: [
-        {
-          name: "🌡️ Temperatuur",
-          value: $temp,
-          inline: true
-        },
-        {
-          name: "🌧️ Kans op regen",
-          value: $rain,
-          inline: true
-        },
-        {
-          name: "🌅 Zon",
-          value: $sun,
-          inline: false
-        },
-        {
-          name: "📊 Dagrecords (" + $record + ")",
-          value:
-            "🔥 Warmste: " + $warm + "°C (" + $warmdate + ")\n" +
-            "❄️ Koudste: " + $cold + "°C (" + $colddate + ")\n" +
-            "🌧️ Natste: " + $wet + " mm (" + $wetdate + ")",
-          inline: false
-        },
-        {
-          name: "📋 Extra",
-          value:
-            "☀️ UV: " + $uv + "\n" +
-            "☁️ Bewolking: " + $cloud + "%\n" +
-            "🌧️ Regen: " + $rainmm + " mm\n" +
-            "🌬️ Wind: " + $wind + " km/h\n" +
-            "💨 Windstoten: " + $gust + " km/h",
-          inline: false
-        },
-        {
-          name: "🧠 Weerfeitje",
-          value: $fact
-        }
-      ]
-    }
-  ]
+  embeds: [{
+    title: $title,
+    color: 3447003,
+    fields: [
+      {
+        name: "🌡️ Temperatuur",
+        value: $temp,
+        inline: true
+      },
+      {
+        name: "🌧️ Regenkans",
+        value: $rain,
+        inline: true
+      },
+      {
+        name: "🌅 Zon",
+        value: $sun
+      },
+      {
+        name: "📊 Dagrecords " + $record,
+        value:
+          "🔥 Warmste: " + $warm + "°C (" + $warmdate + ")\n" +
+          "❄️ Koudste: " + $cold + "°C (" + $colddate + ")\n" +
+          "🌧️ Natste: " + $wet + " mm (" + $wetdate + ")"
+      },
+      {
+        name: "🧠 Weerfeitje",
+        value: $fact
+      }
+    ]
+  }]
 }
 ' > discord_payload.json
 
 
-          curl \
-            -H "Content-Type: application/json" \
-            -X POST \
-            -d @discord_payload.json \
-            "$WEBHOOK"
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d @discord_payload.json \
+               "$WEBHOOK"
