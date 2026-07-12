@@ -9,16 +9,9 @@ jobs:
   send-weather-report:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Installeer pakketten
-        run: |
-          pip install -r requirements.txt
 
       - name: Kies weerfeitje
         id: fact
@@ -30,7 +23,7 @@ jobs:
         run: |
           python scripts/daily_records.py
 
-      - name: Haal weer op en stuur Discord
+      - name: Haal weersverwachting op en verstuur naar Discord
         env:
           FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -53,19 +46,33 @@ jobs:
           RAIN_MM=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
 
           RECORD_DATE=$(jq -r '.datum' daily_records.json)
-
           WARM=$(jq -r '.warmste.waarde' daily_records.json)
           WARM_DATE=$(jq -r '.warmste.datum' daily_records.json)
-
           COLD=$(jq -r '.koudste.waarde' daily_records.json)
           COLD_DATE=$(jq -r '.koudste.datum' daily_records.json)
-
           WET=$(jq -r '.natste.waarde' daily_records.json)
           WET_DATE=$(jq -r '.natste.datum' daily_records.json)
 
-          cat > discord_payload.json <<EOF    
-          
-                               {
+
+          jq -n \
+            --arg fact "$FACT" \
+            --arg temp "$MIN°C tot $MAX°C" \
+            --arg rain "$RAIN%" \
+            --arg sun "🌅 $SUNRISE | 🌇 $SUNSET" \
+            --arg uv "$UV" \
+            --arg wind "$WIND" \
+            --arg gust "$GUST" \
+            --arg cloud "$CLOUD" \
+            --arg rainmm "$RAIN_MM" \
+            --arg record "$RECORD_DATE" \
+            --arg warm "$WARM" \
+            --arg warmdate "$WARM_DATE" \
+            --arg cold "$COLD" \
+            --arg colddate "$COLD_DATE" \
+            --arg wet "$WET" \
+            --arg wetdate "$WET_DATE" \
+'
+{
   "embeds": [
     {
       "title": "📅 Weersverwachting voor Vandaag",
@@ -73,34 +80,35 @@ jobs:
       "fields": [
         {
           "name": "🌡️ Temperatuur",
-          "value": "$MIN°C tot $MAX°C",
+          "value": $temp,
           "inline": true
         },
         {
-          "name": "🌧️ Regenkans",
-          "value": "$RAIN%",
+          "name": "🌧️ Kans op regen",
+          "value": $rain,
           "inline": true
         },
         {
           "name": "🌅 Zon",
-          "value": "🌅 $SUNRISE | 🌇 $SUNSET",
-          "inline": false
+          "value": $sun
         },
         {
-          "name": "📊 Dagrecords ($RECORD_DATE)",
-          "value": "🔥 Warmste: $WARM°C ($WARM_DATE)\n❄️ Koudste: $COLD°C ($COLD_DATE)\n🌧️ Natste: $WET mm ($WET_DATE)",
-          "inline": false
+          "name": "📊 Dagrecords " + $record,
+          "value": "🔥 Warmste: " + $warm + "°C (" + $warmdate + ")\n❄️ Koudste: " + $cold + "°C (" + $colddate + ")\n🌧️ Natste: " + $wet + " mm (" + $wetdate + ")"
+        },
+        {
+          "name": "📋 Extra",
+          "value": "☀️ UV: " + $uv + "\n☁️ Bewolking: " + $cloud + "%\n🌧️ Regen: " + $rainmm + " mm\n🌬️ Wind: " + $wind + " km/h\n💨 Windstoten: " + $gust + " km/h"
         },
         {
           "name": "🧠 Weerfeitje",
-          "value": "$FACT",
-          "inline": false
+          "value": $fact
         }
       ]
     }
   ]
 }
-EOF
+' > discord_payload.json
 
 
           curl -H "Content-Type: application/json" \
