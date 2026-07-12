@@ -1,6 +1,6 @@
 import sqlite3
-import requests
 import pandas as pd
+import requests
 from io import StringIO
 import os
 
@@ -20,107 +20,52 @@ CREATE TABLE IF NOT EXISTS measurements (
 )
 """)
 
-stations = [
-    260,
-    370,
-    235,
-    240,
-    344
-]
+# KNMI daggegevens open data
+url = "https://cdn.knmi.nl/knmi/map/page/klimatologie/gegevens/daggegevens/daggegevens.zip"
 
-url = "https://www.daggegevens.knmi.nl/klimatologie/daggegevens"
+print("Download KNMI bestand")
 
+response = requests.get(url)
 
-for station in stations:
+if response.status_code != 200:
+    print("Download mislukt:", response.status_code)
+    exit()
 
-    print(f"Download station {station}")
+with open("daggegevens.zip", "wb") as f:
+    f.write(response.content)
 
-    response = requests.post(
-        url,
-        data={
-            "stns": str(station),
-            "vars": "TX,TN,RH",
-            "start": "19010101",
-            "end": "20251231"
-        },
-        headers={
-            "User-Agent": "Mozilla/5.0"
-        }
-    )
-
-    if response.status_code != 200:
-        print("KNMI fout:", response.status_code)
-        continue
-
-    if "<html" in response.text.lower():
-        print("Geen CSV ontvangen")
-        continue
+print("Bestand binnen")
 
 
-    df = pd.read_csv(
-        StringIO(response.text),
-        comment="#",
-        sep=","
-    )
+import zipfile
+
+with zipfile.ZipFile("daggegevens.zip") as z:
+    z.extractall("knmi_data")
 
 
-    print(df.head())
+bestanden = os.listdir("knmi_data")
+
+print(bestanden)
 
 
-    if "STN" in df.columns:
-        df.drop(columns=["STN"], inplace=True)
+for bestand in bestanden:
 
+    if bestand.endswith(".txt"):
 
-    df["station"] = station
+        pad = "knmi_data/" + bestand
 
+        print("Lees:", pad)
 
-    df.rename(
-        columns={
-            "YYYYMMDD": "datum",
-            "TX": "temp_max",
-            "TN": "temp_min",
-            "RH": "regen"
-        },
-        inplace=True
-    )
+        df = pd.read_csv(
+            pad,
+            comment="#",
+            sep=",",
+            skipinitialspace=True
+        )
 
+        print(df.head())
 
-    df = df[
-        [
-            "datum",
-            "station",
-            "temp_max",
-            "temp_min",
-            "regen"
-        ]
-    ]
+        break
 
-
-    df["temp_max"] = pd.to_numeric(df["temp_max"], errors="coerce") / 10
-    df["temp_min"] = pd.to_numeric(df["temp_min"], errors="coerce") / 10
-    df["regen"] = pd.to_numeric(df["regen"], errors="coerce") / 10
-
-
-    df.dropna(inplace=True)
-
-
-    print("Aantal regels:", len(df))
-
-
-    df.to_sql(
-        "measurements",
-        conn,
-        if_exists="append",
-        index=False
-    )
-
-
-cursor = conn.cursor()
-cursor.execute("SELECT COUNT(*) FROM measurements")
-print("Totaal:", cursor.fetchone()[0])
-
-
-conn.commit()
-conn.close()
 
 print("KNMI import klaar")
