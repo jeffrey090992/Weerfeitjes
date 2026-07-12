@@ -13,66 +13,49 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Installeer jq
-        run: sudo apt-get install -y jq
-
-      - name: Kies weerfeitje
-        id: fact
+      - name: Installeer dependencies
         run: |
-          FACT=$(shuf -n 1 facts.txt)
-          echo "FACT=$FACT" >> "$GITHUB_OUTPUT"
+          sudo apt-get install -y jq
+          pip install requests pandas
+
+      - name: Haal KNMI data op
+        run: python scripts/import_knmi.py
 
       - name: Maak dagrecords
-        run: |
-          python scripts/daily_records.py
+        run: python scripts/daily_records.py
 
-      - name: Haal weersverwachting op en verstuur naar Discord
+      - name: Verstuur naar Discord
         env:
-          FACT: ${{ steps.fact.outputs.FACT }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Haal weerdata op
-          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_gusts_10m_max,sunshine_duration,precipitation_sum,snowfall_sum,precipitation_hours,cloud_cover_mean,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FAmsterdam")
+          # Fact ophalen
+          FACT=$(shuf -n 1 facts.txt)
+          
+          # Weerdata ophalen (API)
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_gusts_10m_max,precipitation_sum,cloud_cover_mean,wind_speed_10m_max&timezone=Europe%2FAmsterdam")
 
-          # Parse variabelen
           MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
           SUNRISE=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
           SUNSET=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
-          UV=$(echo "$DATA" | jq -r '.daily.uv_index_max[0]')
-          WIND=$(echo "$DATA" | jq -r '.daily.wind_speed_10m_max[0]')
-          GUST=$(echo "$DATA" | jq -r '.daily.wind_gusts_10m_max[0]')
-          CLOUD=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
-          RAIN_MM=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
-
-          # Parse records
+          
+          # JSON records inlezen
           RECORD_DATE=$(jq -r '.datum' daily_records.json)
           WARM=$(jq -r '.warmste.waarde' daily_records.json)
-          WARM_DATE=$(jq -r '.warmste.datum' daily_records.json)
           COLD=$(jq -r '.koudste.waarde' daily_records.json)
-          COLD_DATE=$(jq -r '.koudste.datum' daily_records.json)
           WET=$(jq -r '.natste.waarde' daily_records.json)
-          WET_DATE=$(jq -r '.natste.datum' daily_records.json)
 
-          # Bouw JSON payload met correcte jq syntax
+          # Bouw JSON
           jq -n \
             --arg fact "$FACT" \
             --arg temp "$MIN°C tot $MAX°C" \
             --arg rain "$RAIN%" \
             --arg sun "🌅 $SUNRISE | 🌇 $SUNSET" \
-            --arg uv "$UV" \
-            --arg wind "$WIND" \
-            --arg gust "$GUST" \
-            --arg cloud "$CLOUD" \
-            --arg rainmm "$RAIN_MM" \
-            --arg record "$RECORD_DATE" \
+            --arg recdate "$RECORD_DATE" \
             --arg warm "$WARM" \
-            --arg warmdate "$WARM_DATE" \
             --arg cold "$COLD" \
-            --arg colddate "$COLD_DATE" \
             --arg wet "$WET" \
-            --arg wetdate "$WET_DATE" \
             '{
               "embeds": [{
                 "title": "📅 Weersverwachting voor Vandaag",
@@ -81,12 +64,10 @@ jobs:
                   {"name": "🌡️ Temperatuur", "value": $temp, "inline": true},
                   {"name": "🌧️ Kans op regen", "value": $rain, "inline": true},
                   {"name": "🌅 Zon", "value": $sun},
-                  {"name": ("📊 Dagrecords " + $record), "value": ("🔥 Warmste: " + $warm + "°C (" + $warmdate + ")\n❄️ Koudste: " + $cold + "°C (" + $colddate + ")\n🌧️ Natste: " + $wet + " mm (" + $wetdate + ")")},
-                  {"name": "📋 Extra", "value": ("☀️ UV: " + $uv + "\n☁️ Bewolking: " + $cloud + "%\n🌧️ Regen: " + $rainmm + " mm\n🌬️ Wind: " + $wind + " km/h\n💨 Windstoten: " + $gust + " km/h")},
+                  {"name": ("📊 Dagrecords " + $recdate), "value": ("🔥 Warmste: " + $warm + "°C\n❄️ Koudste: " + $cold + "°C\n🌧️ Natste: " + $wet + " mm")},
                   {"name": "🧠 Weerfeitje", "value": $fact}
                 ]
               }]
             }' > discord_payload.json
 
-          # Verstuur naar Discord
           curl -H "Content-Type: application/json" -X POST -d @discord_payload.json "$WEBHOOK"
