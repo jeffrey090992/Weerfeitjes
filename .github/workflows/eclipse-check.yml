@@ -1,12 +1,30 @@
 name: Eclipse Check Nederland
 
 on:
+  schedule:
+    - cron: "0 7 * * *"
   workflow_dispatch:
 
 jobs:
   eclipse-check:
+
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test
-        run: echo "Eclipse workflow actief"
+      - name: Repository ophalen
+        uses: actions/checkout@v4
+
+      - name: Python instellen
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Packages installeren
+        run: |
+          pip install requests
+
+      - name: Eclipse controle
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          python eclipse_check.py
