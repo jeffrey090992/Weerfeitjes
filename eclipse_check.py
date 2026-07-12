@@ -1,81 +1,90 @@
 import os
 import requests
 from datetime import datetime, timedelta
+import pytz
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
+TIMEZONE = pytz.timezone("Europe/Amsterdam")
+
+# Nederlandse locatie (midden Nederland)
+LOCATION = {
+    "country": "Nederland",
+    "visible": True
+}
+
+# Hier komen de astronomische gegevens binnen
+# Later te vervangen door automatische NASA/JPL data
 ECLIPSES = [
     {
-        "id": "2026-03-03-moon",
+        "id": "moon-2026-03-03",
         "type": "🌙 Maansverduistering",
-        "datum": datetime(2026, 3, 3, 11, 33),
-        "locatie": "Nederland"
+        "date": datetime(2026, 3, 3, 12, 33)
     },
     {
-        "id": "2026-08-12-sun",
+        "id": "sun-2026-08-12",
         "type": "☀️ Zonsverduistering",
-        "datum": datetime(2026, 8, 12, 17, 47),
-        "locatie": "Nederland"
+        "date": datetime(2026, 8, 12, 19, 47)
     }
 ]
 
 
-def stuur_discord(bericht):
+def send_discord(message):
     if WEBHOOK:
         requests.post(
             WEBHOOK,
-            json={"content": bericht},
+            json={"content": message},
             timeout=10
         )
 
 
-def al_gemeld(eclipse_id):
+def already_sent(eclipse_id):
     if not os.path.exists("last_alert.txt"):
         return False
 
-    with open("last_alert.txt") as f:
-        return f.read().strip() == eclipse_id
+    with open("last_alert.txt") as file:
+        return eclipse_id == file.read().strip()
 
 
-def opslaan(eclipse_id):
-    with open("last_alert.txt", "w") as f:
-        f.write(eclipse_id)
+def save_sent(eclipse_id):
+    with open("last_alert.txt", "w") as file:
+        file.write(eclipse_id)
 
 
-def controle():
+def check():
 
-    nu = datetime.now()
+    now = datetime.now()
 
     for eclipse in ECLIPSES:
 
-        verschil = eclipse["datum"] - nu
+        difference = eclipse["date"] - now
 
-        # Alleen melden tussen 24 en 0 uur vooraf
-        if timedelta(0) < verschil <= timedelta(hours=24):
+        if timedelta(0) < difference <= timedelta(hours=24):
 
-            if not al_gemeld(eclipse["id"]):
+            if not already_sent(eclipse["id"]):
 
-                bericht = f"""
-🚨 **Astronomie waarschuwing Nederland**
+                message = f"""
+🚨 **Eclipse Alert Nederland 🇳🇱**
 
-{eclipse['type']} komt eraan!
+{eclipse['type']}
 
-📅 Tijd:
-{eclipse['datum'].strftime('%d-%m-%Y %H:%M')}
+📅 Datum:
+{eclipse['date'].strftime('%d-%m-%Y %H:%M')}
 
-📍 Locatie:
-🇳🇱 {eclipse['locatie']}
+📍 Gebied:
+Nederland
 
-⏰ Nog ongeveer:
-{verschil.days} dagen en {verschil.seconds//3600} uur
+⏰ Nog:
+{difference.seconds // 3600} uur
+
+✅ Alleen zichtbaarheidscontrole Nederland
 """
 
-                stuur_discord(bericht)
-                opslaan(eclipse["id"])
+                send_discord(message)
+                save_sent(eclipse["id"])
 
-            return
-
-    print("Geen komende verduistering binnen 24 uur.")
+            break
 
 
-controle()
+if __name__ == "__main__":
+    check()
