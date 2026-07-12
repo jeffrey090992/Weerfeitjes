@@ -1,4 +1,4 @@
-name: Eclipse Alert
+name: Eclipse Alert Nederland
 
 on:
   schedule:
@@ -7,6 +7,7 @@ on:
 
 jobs:
   eclipse:
+
     runs-on: ubuntu-latest
 
     steps:
@@ -16,9 +17,9 @@ jobs:
         with:
           python-version: "3.x"
 
-      - run: pip install requests
+      - run: pip install -r requirements.txt
 
-      - name: Controleer verduistering
+      - name: Controle
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: python eclipse_check.py
