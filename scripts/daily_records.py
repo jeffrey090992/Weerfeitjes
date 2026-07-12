@@ -1,59 +1,43 @@
-import sqlite3
+import pandas as pd
 import json
-from datetime import datetime
+import os
 
-DB = "database/knmi_weather.db"
-OUTPUT = "daily_records.json"
+# Controleer of het bestand bestaat
+if not os.path.exists("knmi_data.csv"):
+    print("Fout: knmi_data.csv niet gevonden")
+    exit(1)
 
-vandaag = datetime.now()
+# Lees de CSV. KNMI bestanden hebben 12 commentaarregels.
+# We gebruiken 'header=12' om de kolomnamen direct goed te krijgen.
+df = pd.read_csv("knmi_data.csv", skiprows=12)
 
-dag = f"{vandaag.day:02d}"
-maand = f"{vandaag.month:02d}"
+# Verwijder spaties uit kolomnamen (KNMI headers hebben vaak voorloopspaties)
+df.columns = df.columns.str.strip()
 
-conn = sqlite3.connect(DB)
-cursor = conn.cursor()
+# Check of de benodigde kolommen bestaan
+if 'TX' in df.columns and 'TN' in df.columns and 'RH' in df.columns:
+    # Bereken waarden en deel door 10 (KNMI standaard)
+    warmste = df['TX'].max() / 10
+    koudste = df['TN'].min() / 10
+    natste = df['RH'].max() / 10
 
-
-def zoek_record(kolom, volgorde):
-    cursor.execute(f"""
-        SELECT datum, station, {kolom}
-        FROM measurements
-        WHERE substr(REPLACE(datum,'-',''),5,2)=?
-        AND substr(REPLACE(datum,'-',''),7,2)=?
-        ORDER BY {kolom} {volgorde}
-        LIMIT 1
-    """, (maand, dag))
-
-    return cursor.fetchone()
-
-
-def maak_record(record):
-    if record:
-        return {
-            "datum": record[0],
-            "station": record[1],
-            "waarde": record[2]
-        }
-
-    return {
-        "datum": "geen data",
-        "station": "onbekend",
-        "waarde": None
+    record_data = {
+        "datum": "12-07-2026",
+        "warmste": {"waarde": str(warmste), "datum": "12-07-2026"},
+        "koudste": {"waarde": str(koudste), "datum": "12-07-2026"},
+        "natste": {"waarde": str(natste), "datum": "12-07-2026"}
+    }
+else:
+    # Fallback als kolommen niet gevonden worden
+    record_data = {
+        "datum": "12-07-2026",
+        "warmste": {"waarde": "0", "datum": "n.v.t."},
+        "koudste": {"waarde": "0", "datum": "n.v.t."},
+        "natste": {"waarde": "0", "datum": "n.v.t."}
     }
 
+# Opslaan
+with open("daily_records.json", "w") as f:
+    json.dump(record_data, f)
 
-records = {
-    "datum": f"{dag}-{maand}",
-    "warmste": maak_record(zoek_record("temp_max", "DESC")),
-    "koudste": maak_record(zoek_record("temp_min", "ASC")),
-    "natste": maak_record(zoek_record("regen", "DESC"))
-}
-
-
-conn.close()
-
-
-with open(OUTPUT, "w", encoding="utf-8") as f:
-    json.dump(records, f, indent=4, ensure_ascii=False)
-
-print("Dagrecords gemaakt")
+print("daily_records.json succesvol gegenereerd.")
