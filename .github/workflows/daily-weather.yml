@@ -55,7 +55,7 @@ jobs:
           WET=$(jq -r '.natste.waarde' daily_records.json)
           WET_DATE=$(jq -r '.natste.datum' daily_records.json)
 
-          # Bouw JSON payload
+          # Bouw JSON payload met correcte jq syntax
           jq -n \
             --arg fact "$FACT" \
             --arg temp "$MIN°C tot $MAX°C" \
@@ -81,8 +81,8 @@ jobs:
                   {"name": "🌡️ Temperatuur", "value": $temp, "inline": true},
                   {"name": "🌧️ Kans op regen", "value": $rain, "inline": true},
                   {"name": "🌅 Zon", "value": $sun},
-                  {"name": "📊 Dagrecords " + $record, "value": "🔥 Warmste: " + $warm + "°C (" + $warmdate + ")\n❄️ Koudste: " + $cold + "°C (" + $colddate + ")\n🌧️ Natste: " + $wet + " mm (" + $wetdate + ")"},
-                  {"name": "📋 Extra", "value": "☀️ UV: " + $uv + "\n☁️ Bewolking: " + $cloud + "%\n🌧️ Regen: " + $rainmm + " mm\n🌬️ Wind: " + $wind + " km/h\n💨 Windstoten: " + $gust + " km/h"},
+                  {"name": ("📊 Dagrecords " + $record), "value": ("🔥 Warmste: " + $warm + "°C (" + $warmdate + ")\n❄️ Koudste: " + $cold + "°C (" + $colddate + ")\n🌧️ Natste: " + $wet + " mm (" + $wetdate + ")")},
+                  {"name": "📋 Extra", "value": ("☀️ UV: " + $uv + "\n☁️ Bewolking: " + $cloud + "%\n🌧️ Regen: " + $rainmm + " mm\n🌬️ Wind: " + $wind + " km/h\n💨 Windstoten: " + $gust + " km/h")},
                   {"name": "🧠 Weerfeitje", "value": $fact}
                 ]
               }]
