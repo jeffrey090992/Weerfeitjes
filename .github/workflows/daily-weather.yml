@@ -63,54 +63,44 @@ jobs:
           WET=$(jq -r '.natste.waarde' daily_records.json)
           WET_DATE=$(jq -r '.natste.datum' daily_records.json)
 
-                jq -n \
-            --arg title "📅 Weersverwachting voor Vandaag" \
-            --arg temp "$MIN°C tot $MAX°C" \
-            --arg rain "$RAIN%" \
-            --arg sun "🌅 $SUNRISE | 🌇 $SUNSET" \
-            --arg fact "$FACT" \
-            --arg record "$RECORD_DATE" \
-            --arg warm "$WARM" \
-            --arg warmdate "$WARM_DATE" \
-            --arg cold "$COLD" \
-            --arg colddate "$COLD_DATE" \
-            --arg wet "$WET" \
-            --arg wetdate "$WET_DATE" \
-            '
-{
-  embeds: [{
-    title: $title,
-    color: 3447003,
-    fields: [
-      {
-        name: "🌡️ Temperatuur",
-        value: $temp,
-        inline: true
-      },
-      {
-        name: "🌧️ Regenkans",
-        value: $rain,
-        inline: true
-      },
-      {
-        name: "🌅 Zon",
-        value: $sun
-      },
-      {
-        name: "📊 Dagrecords " + $record,
-        value:
-          "🔥 Warmste: " + $warm + "°C (" + $warmdate + ")\n" +
-          "❄️ Koudste: " + $cold + "°C (" + $colddate + ")\n" +
-          "🌧️ Natste: " + $wet + " mm (" + $wetdate + ")"
-      },
-      {
-        name: "🧠 Weerfeitje",
-        value: $fact
-      }
-    ]
-  }]
+          cat > discord_payload.json <<EOF    
+          
+                               {
+  "embeds": [
+    {
+      "title": "📅 Weersverwachting voor Vandaag",
+      "color": 3447003,
+      "fields": [
+        {
+          "name": "🌡️ Temperatuur",
+          "value": "$MIN°C tot $MAX°C",
+          "inline": true
+        },
+        {
+          "name": "🌧️ Regenkans",
+          "value": "$RAIN%",
+          "inline": true
+        },
+        {
+          "name": "🌅 Zon",
+          "value": "🌅 $SUNRISE | 🌇 $SUNSET",
+          "inline": false
+        },
+        {
+          "name": "📊 Dagrecords ($RECORD_DATE)",
+          "value": "🔥 Warmste: $WARM°C ($WARM_DATE)\n❄️ Koudste: $COLD°C ($COLD_DATE)\n🌧️ Natste: $WET mm ($WET_DATE)",
+          "inline": false
+        },
+        {
+          "name": "🧠 Weerfeitje",
+          "value": "$FACT",
+          "inline": false
+        }
+      ]
+    }
+  ]
 }
-' > discord_payload.json
+EOF
 
 
           curl -H "Content-Type: application/json" \
