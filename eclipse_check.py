@@ -2,103 +2,99 @@ import os
 import requests
 from datetime import datetime, timedelta
 import pytz
+from skyfield.api import load, wgs84
+from skyfield import almanac
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-AMSTERDAM = pytz.timezone("Europe/Amsterdam")
+tz = pytz.timezone("Europe/Amsterdam")
 
-# Nederlandse zichtbare eclipsen
-# Wordt later vervangen door automatische astronomische data
-ECLIPSES = [
-    {
-        "id": "moon-2026-03-03",
-        "type": "🌙 Maansverduistering",
-        "date": "2026-03-03 12:33",
-        "visible": True
-    },
-    {
-        "id": "sun-2026-08-12",
-        "type": "☀️ Zonsverduistering",
-        "date": "2026-08-12 19:47",
-        "visible": True
-    }
-]
+# Nederland (Amsterdam)
+observer = wgs84.latlon(
+    52.3676,
+    4.9041
+)
+
+LAST_ALERT = "last_alert.txt"
 
 
 def send_discord(message):
-    if not WEBHOOK:
-        print("Geen Discord webhook gevonden")
-        return
+    if WEBHOOK:
+        requests.post(
+            WEBHOOK,
+            json={"content": message},
+            timeout=10
+        )
 
-    response = requests.post(
-        WEBHOOK,
-        json={"content": message},
-        timeout=10
+
+def already_sent(event):
+    if not os.path.exists(LAST_ALERT):
+        return False
+
+    with open(LAST_ALERT) as f:
+        return f.read().strip() == event
+
+
+def save_sent(event):
+    with open(LAST_ALERT, "w") as f:
+        f.write(event)
+
+
+def check():
+
+    ts = load.timescale()
+    eph = load("de421.bsp")
+
+    now = datetime.now(tz)
+
+    # komende periode bekijken
+    start = ts.now()
+    end = ts.utc(now.year + 2, 1, 1)
+
+    t, events = almanac.find_discrete(
+        start,
+        end,
+        almanac.eclipse_events(eph)
     )
 
-    print("Discord status:", response.status_code)
+    for time, event in zip(t, events):
 
-
-def load_last_alert():
-    if os.path.exists("last_alert.txt"):
-        with open("last_alert.txt") as f:
-            return f.read().strip()
-
-    return ""
-
-
-def save_last_alert(eclipse_id):
-    with open("last_alert.txt", "w") as f:
-        f.write(eclipse_id)
-
-
-def check_eclipse():
-
-    now = datetime.now(AMSTERDAM)
-
-    last_alert = load_last_alert()
-
-    for eclipse in ECLIPSES:
-
-        eclipse_time = AMSTERDAM.localize(
-            datetime.strptime(
-                eclipse["date"],
-                "%Y-%m-%d %H:%M"
-            )
-        )
+        eclipse_time = time.utc_datetime().replace(
+            tzinfo=pytz.utc
+        ).astimezone(tz)
 
         verschil = eclipse_time - now
 
-        # Alleen Nederland + alleen 24 uur vooraf
-        if (
-            eclipse["visible"]
-            and timedelta(0) < verschil <= timedelta(hours=24)
-        ):
+        if timedelta(0) < verschil <= timedelta(hours=24):
 
-            if last_alert != eclipse["id"]:
+            if event == 0:
+                soort = "☀️ Zonsverduistering"
+            else:
+                soort = "🌙 Maansverduistering"
+
+            naam = f"{soort}-{eclipse_time}"
+
+            if not already_sent(naam):
 
                 bericht = f"""
 🚨 **Eclipse Alert Nederland 🇳🇱**
 
-{eclipse['type']}
+{soort}
 
 📅 Datum:
 {eclipse_time.strftime('%d-%m-%Y %H:%M')}
 
-📍 Zichtbaar:
+📍 Controle locatie:
 Nederland
 
 ⏰ Nog:
 {verschil.seconds // 3600} uur
 
-🔭 Automatische controle actief
+🔭 Astronomische berekening actief
 """
 
                 send_discord(bericht)
-                save_last_alert(eclipse["id"])
-
-            else:
-                print("Melding al verstuurd")
+                save_sent(naam)
 
             return
 
@@ -106,4 +102,4 @@ Nederland
 
 
 if __name__ == "__main__":
-    check_eclipse()
+    check()
