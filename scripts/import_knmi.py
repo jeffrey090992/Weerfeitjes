@@ -20,13 +20,12 @@ CREATE TABLE IF NOT EXISTS measurements (
 )
 """)
 
-# KNMI stations
 stations = [
-    260,  # De Bilt
-    370,  # Eindhoven
-    235,  # De Kooy
-    240,  # Schiphol
-    344   # Rotterdam
+    260,
+    370,
+    235,
+    240,
+    344
 ]
 
 url = "https://www.daggegevens.knmi.nl/klimatologie/daggegevens"
@@ -39,39 +38,35 @@ for station in stations:
     response = requests.post(
         url,
         data={
-            "stns": station,
+            "stns": str(station),
             "vars": "TX,TN,RH",
             "start": "19010101",
             "end": "20251231"
+        },
+        headers={
+            "User-Agent": "Mozilla/5.0"
         }
     )
 
-    print(response.text[:300])
-
     if response.status_code != 200:
-        print(f"Fout bij station {station}")
+        print("KNMI fout:", response.status_code)
+        continue
+
+    if "<html" in response.text.lower():
+        print("Geen CSV ontvangen")
         continue
 
 
-    try:
-        df = pd.read_csv(
-            StringIO(response.text),
-            comment="#",
-            sep=",",
-            skipinitialspace=True
-        )
-
-    except Exception as e:
-        print("Fout bij inlezen:")
-        print(e)
-        continue
+    df = pd.read_csv(
+        StringIO(response.text),
+        comment="#",
+        sep=","
+    )
 
 
     print(df.head())
-    print(df.columns)
 
 
-    # Station verwijderen als KNMI hem meestuurt
     if "STN" in df.columns:
         df.drop(columns=["STN"], inplace=True)
 
@@ -79,7 +74,6 @@ for station in stations:
     df["station"] = station
 
 
-    # Kolommen hernoemen
     df.rename(
         columns={
             "YYYYMMDD": "datum",
@@ -91,7 +85,6 @@ for station in stations:
     )
 
 
-    # Alleen benodigde kolommen
     df = df[
         [
             "datum",
@@ -103,31 +96,17 @@ for station in stations:
     ]
 
 
-    # KNMI waarden omzetten
-    df["temp_max"] = pd.to_numeric(
-        df["temp_max"],
-        errors="coerce"
-    ) / 10
-
-    df["temp_min"] = pd.to_numeric(
-        df["temp_min"],
-        errors="coerce"
-    ) / 10
-
-    df["regen"] = pd.to_numeric(
-        df["regen"],
-        errors="coerce"
-    ) / 10
+    df["temp_max"] = pd.to_numeric(df["temp_max"], errors="coerce") / 10
+    df["temp_min"] = pd.to_numeric(df["temp_min"], errors="coerce") / 10
+    df["regen"] = pd.to_numeric(df["regen"], errors="coerce") / 10
 
 
-    # Lege regels verwijderen
     df.dropna(inplace=True)
 
 
-    print(f"{len(df)} metingen gevonden")
+    print("Aantal regels:", len(df))
 
 
-    # Opslaan
     df.to_sql(
         "measurements",
         conn,
@@ -136,19 +115,9 @@ for station in stations:
     )
 
 
-    print(f"Station {station} klaar")
-
-
-# Controle
 cursor = conn.cursor()
-
-cursor.execute(
-    "SELECT COUNT(*) FROM measurements"
-)
-
-aantal = cursor.fetchone()[0]
-
-print("Totaal aantal metingen:", aantal)
+cursor.execute("SELECT COUNT(*) FROM measurements")
+print("Totaal:", cursor.fetchone()[0])
 
 
 conn.commit()
