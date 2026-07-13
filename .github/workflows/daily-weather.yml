@@ -20,22 +20,23 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           FACT=$(shuf -n 1 facts.txt)
-          # API call uitgebreid met uv_index_max, wind_speed_10m_max en cloud_cover_mean
-          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_speed_10m_max,cloud_cover_mean&timezone=Europe%2FAmsterdam")
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset,uv_index_max,wind_speed_10m_max,cloud_cover_mean&timezone=Europe%2FAmsterdam")
           MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
-          RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
+          RAIN_CHANCE=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
+          RAIN_SUM=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
           SUNR=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
           SUNS=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
           UV=$(echo "$DATA" | jq -r '.daily.uv_index_max[0]')
           WIND=$(echo "$DATA" | jq -r '.daily.wind_speed_10m_max[0]')
           CLOUD=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
           
-          jq -n --arg f "$FACT" --arg t "$MIN°C tot $MAX°C" --arg r "$RAIN%" --arg s "🌅 $SUNR | 🌇 $SUNS" \
+          jq -n --arg f "$FACT" --arg t "$MIN°C tot $MAX°C" --arg rc "$RAIN_CHANCE%" --arg rs "$RAIN_SUM mm" --arg s "🌅 $SUNR | 🌇 $SUNS" \
             --arg uv "$UV" --arg wind "$WIND km/u" --arg cloud "$CLOUD%" \
             '{embeds: [{title: "📅 Weersverwachting voor Vandaag", color: 3447003, fields: [
               {name: "🌡️ Temperatuur", value: $t, inline: true},
-              {name: "🌧️ Kans op regen", value: $r, inline: true},
+              {name: "🌧️ Kans op regen", value: $rc, inline: true},
+              {name: "💧 Verwachte neerslag", value: $rs, inline: true},
               {name: "☀️ UV-Index", value: $uv, inline: true},
               {name: "💨 Max wind", value: $wind, inline: true},
               {name: "☁️ Bewolking", value: $cloud, inline: true},
