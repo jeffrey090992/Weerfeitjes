@@ -23,16 +23,13 @@ jobs:
 
       - name: KNMI data ophalen
         id: knmi_import
-        run: |
-          # Voer script uit en vang de output op in GITHUB_OUTPUT
-          python scripts/import_knmi.py >> $GITHUB_OUTPUT
+        run: python scripts/import_knmi.py
 
       - name: Database opslaan
         run: |
           git config --global user.name "KNMI Bot"
           git config --global user.email "actions@github.com"
           git add database/knmi_weather.db
-          # Check of er wijzigingen zijn, anders stop zonder foutmelding
           git commit -m "Update KNMI dagrecords database" || exit 0
           git push
 
