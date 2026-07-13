@@ -86,8 +86,7 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max,relative_humidity_2m_max&timezone=Europe%2FAmsterdam"; }
-          # Live data ophalen voor avondbericht
-          get_now() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,wind_speed_10m"; }
+          get_now() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,wind_speed_10m&daily=precipitation_sum&timezone=Europe%2FAmsterdam"; }
           
           fmt_h() { echo "$1" | jq -r '.daily | "Max temp: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nHoogste windstoot: \(.wind_gusts_10m_max[0]) km/u\nMax. luchtvochtigheid: \(.relative_humidity_2m_max[0])%"'; }
           
@@ -95,9 +94,9 @@ jobs:
           M_DATA=$(get_hist 52.13 5.29)
           Z_DATA=$(get_hist 50.85 5.69)
           
-          N_LIVE="Temp: $(get_now 53.21 6.56 | jq -r '.current.temperature_2m')°C, Wind: $(get_now 53.21 6.56 | jq -r '.current.wind_speed_10m') km/u"
-          M_LIVE="Temp: $(get_now 52.13 5.29 | jq -r '.current.temperature_2m')°C, Wind: $(get_now 52.13 5.29 | jq -r '.current.wind_speed_10m') km/u"
-          Z_LIVE="Temp: $(get_now 50.85 5.69 | jq -r '.current.temperature_2m')°C, Wind: $(get_now 50.85 5.69 | jq -r '.current.wind_speed_10m') km/u"
+          N_LIVE=$(get_now 53.21 6.56 | jq -r '"Temp: \(.current.temperature_2m)°C | Wind: \(.current.wind_speed_10m) km/u | Regen vandaag: \(.daily.precipitation_sum[0]) mm"')
+          M_LIVE=$(get_now 52.13 5.29 | jq -r '"Temp: \(.current.temperature_2m)°C | Wind: \(.current.wind_speed_10m) km/u | Regen vandaag: \(.daily.precipitation_sum[0]) mm"')
+          Z_LIVE=$(get_now 50.85 5.69 | jq -r '"Temp: \(.current.temperature_2m)°C | Wind: \(.current.wind_speed_10m) km/u | Regen vandaag: \(.daily.precipitation_sum[0]) mm"')
           
           jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$Z_DATA")" \
                 --arg n_l "$N_LIVE" --arg m_l "$M_LIVE" --arg z_l "$Z_LIVE" \
