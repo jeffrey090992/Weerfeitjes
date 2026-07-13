@@ -94,14 +94,14 @@ jobs:
           M_DATA=$(get_hist 52.13 5.29)
           Z_DATA=$(get_hist 50.85 5.69)
           
-          N_LIVE=$(get_now 53.21 6.56 | jq -r '"Temp: \(.current.temperature_2m)°C | Wind: \(.current.wind_speed_10m) km/u | Regen vandaag: \(.daily.precipitation_sum[0]) mm"')
-          M_LIVE=$(get_now 52.13 5.29 | jq -r '"Temp: \(.current.temperature_2m)°C | Wind: \(.current.wind_speed_10m) km/u | Regen vandaag: \(.daily.precipitation_sum[0]) mm"')
-          Z_LIVE=$(get_now 50.85 5.69 | jq -r '"Temp: \(.current.temperature_2m)°C | Wind: \(.current.wind_speed_10m) km/u | Regen vandaag: \(.daily.precipitation_sum[0]) mm"')
+          N_LIVE=$(get_now 53.21 6.56 | jq -r '"Temp: \(.current.temperature_2m)°C\nWind: \(.current.wind_speed_10m) km/u\nRegen vandaag: \(.daily.precipitation_sum[0]) mm"')
+          M_LIVE=$(get_now 52.13 5.29 | jq -r '"Temp: \(.current.temperature_2m)°C\nWind: \(.current.wind_speed_10m) km/u\nRegen vandaag: \(.daily.precipitation_sum[0]) mm"')
+          Z_LIVE=$(get_now 50.85 5.69 | jq -r '"Temp: \(.current.temperature_2m)°C\nWind: \(.current.wind_speed_10m) km/u\nRegen vandaag: \(.daily.precipitation_sum[0]) mm"')
           
           jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$Z_DATA")" \
                 --arg n_l "$N_LIVE" --arg m_l "$M_LIVE" --arg z_l "$Z_LIVE" \
             '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [
-              {name: "🌡️ Huidige status (Live)", value: "Noord: \($n_l)\nMidden: \($m_l)\nZuid: \($z_l)", inline: false},
+              {name: "🌡️ Huidige status (Live)", value: "**Noord:**\n\($n_l)\n\n**Midden:**\n\($m_l)\n\n**Zuid:**\n\($z_l)", inline: false},
               {name: "📍 Noord", value: $n},
               {name: "📍 Midden", value: $m},
               {name: "📍 Zuid", value: $z}
