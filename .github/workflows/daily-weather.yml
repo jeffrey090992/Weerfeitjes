@@ -48,13 +48,14 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Haal historische data van vandaag op (of meest recente observaties)
           DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,sunshine_duration,wind_gusts_10m_max&timezone=Europe%2FAmsterdam")
           MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
           WIND=$(echo "$DATA" | jq -r '.daily.wind_gusts_10m_max[0]')
-          SUN=$(echo "$DATA" | jq -r '.daily.sunshine_duration[0]' | awk '{print $1/3600}')
+          
+          # Afronden op 1 decimaal
+          SUN=$(echo "$DATA" | jq -r '.daily.sunshine_duration[0]' | awk '{printf "%.1f", $1/3600}')
           
           jq -n --arg max "$MAX" --arg min "$MIN" --arg rain "$RAIN" --arg wind "$WIND" --arg sun "$SUN" \
             '{embeds: [{title: "📊 Het Weer van Vandaag: De Terugblik", color: 16744192, fields: [
