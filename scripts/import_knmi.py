@@ -1,25 +1,22 @@
-import os
 import pandas as pd
+import requests
+import io
 
-# Pad naar de root
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-csv_path = os.path.join(root_dir, 'knmi_data.csv')
+def haal_wetterzentrale_data():
+    # Vervang deze URL door de specifieke bron-URL van de data die je wilt hebben
+    url = "https://www.wetterzentrale.de/..." 
+    
+    try:
+        response = requests.get(url)
+        # Afhankelijk van het formaat (meestal CSV of tekst):
+        df = pd.read_csv(io.StringIO(response.text))
+        return df
+    except Exception as e:
+        print(f"Fout bij ophalen van Wetterzentrale: {e}")
+        return None
 
-# --- JOUW DATA OPHAAL LOGICA ---
-# VOORBEELD: Vervang dit door jouw daadwerkelijke ophaalcode
-# df = pd.read_csv('...') of df = pd.DataFrame(...)
-# ZORG DAT 'df' hier gevuld wordt met data!
+# Aanroep in je script
+df = haal_wetterzentrale_data()
 
-# Controleer of df gevuld is
-if 'df' in locals() and not df.empty:
-    df.to_csv(csv_path, index=False)
-    print(f"Bestand succesvol opgeslagen op {csv_path} met {len(df)} rijen.")
-    aantal_records = len(df)
-else:
-    print("FOUT: 'df' is leeg of niet gedefinieerd!")
-    exit(1)
-
-# Output naar GitHub Actions
-if 'GITHUB_OUTPUT' in os.environ:
-    with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-        fh.write(f"message=Succesvol {aantal_records} records opgehaald.\n")
+# Vanaf hier gaat de rest van je huidige script weer door:
+# (Het opslaan van df naar knmi_data.csv)
