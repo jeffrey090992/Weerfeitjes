@@ -9,8 +9,7 @@ jobs:
   weather:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Nodig voor de database update
-
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
