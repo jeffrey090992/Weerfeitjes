@@ -2,53 +2,66 @@ name: Daily Weather
 
 on:
   schedule:
-    - cron: "0 8 * * *"
+    - cron: "0 8 * * *"    # Ochtendverwachting
+    - cron: "50 22 * * *"  # Avondterugblik
   workflow_dispatch:
 
 jobs:
-  send-weather-report:
+  ochtend-verwachting:
     runs-on: ubuntu-latest
+    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Installeer dependencies
-        run: |
-          sudo apt-get install -y jq
-          pip install requests pandas
-
-      - name: Verstuur naar Discord
+      - name: Install
+        run: sudo apt-get install -y jq
+      - name: Verstuur Ochtendbericht
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Fact ophalen
           FACT=$(shuf -n 1 facts.txt)
-          
-          # Weerdata ophalen (API)
-          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_gusts_10m_max,precipitation_sum,cloud_cover_mean,wind_speed_10m_max&timezone=Europe%2FAmsterdam")
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Europe%2FAmsterdam")
           MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
-          SUNRISE=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
-          SUNSET=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
+          SUNR=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
+          SUNS=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
           
-          # Bouw JSON zonder de dagrecords sectie
-          jq -n \
-            --arg fact "$FACT" \
-            --arg temp "$MIN°C tot $MAX°C" \
-            --arg rain "$RAIN%" \
-            --arg sun "🌅 $SUNRISE | 🌇 $SUNSET" \
-            '{
-              "embeds": [{
-                "title": "📅 Weersverwachting voor Vandaag",
-                "color": 3447003,
-                "fields": [
-                  {"name": "🌡️ Temperatuur", "value": $temp, "inline": true},
-                  {"name": "🌧️ Kans op regen", "value": $rain, "inline": true},
-                  {"name": "🌅 Zon", "value": $sun},
-                  {"name": "🧠 Weerfeitje", "value": $fact}
-                ]
-              }]
-            }' > discord_payload.json
-            
-          curl -H "Content-Type: application/json" -X POST -d @discord_payload.json "$WEBHOOK"
+          jq -n --arg f "$FACT" --arg t "$MIN°C tot $MAX°C" --arg r "$RAIN%" --arg s "🌅 $SUNR | 🌇 $SUNS" \
+            '{embeds: [{title: "📅 Weersverwachting voor Vandaag", color: 3447003, fields: [
+              {name: "🌡️ Temperatuur", value: $t, inline: true},
+              {name: "🌧️ Kans op regen", value: $r, inline: true},
+              {name: "🌅 Zon", value: $s},
+              {name: "🧠 Weerfeitje", value: $f}
+            ]}]}' > payload.json
+          curl -H "Content-Type: application/json" -X POST -d @payload.json "$WEBHOOK"
+
+  avond-terugblik:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '50 22 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get install -y jq
+      - name: Verstuur Avondbericht
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # Haal historische data van vandaag op (of meest recente observaties)
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,sunshine_duration,wind_gusts_10m_max&timezone=Europe%2FAmsterdam")
+          MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
+          MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
+          RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
+          WIND=$(echo "$DATA" | jq -r '.daily.wind_gusts_10m_max[0]')
+          SUN=$(echo "$DATA" | jq -r '.daily.sunshine_duration[0]' | awk '{print $1/3600}')
+          
+          jq -n --arg max "$MAX" --arg min "$MIN" --arg rain "$RAIN" --arg wind "$WIND" --arg sun "$SUN" \
+            '{embeds: [{title: "📊 Het Weer van Vandaag: De Terugblik", color: 16744192, fields: [
+              {name: "🔥 Hoogste temperatuur", value: ($max + "°C")},
+              {name: "❄️ Laagste temperatuur", value: ($min + "°C")},
+              {name: "☀️ Totale zonuren", value: ($sun + " uur")},
+              {name: "💧 Totale neerslag", value: ($rain + " mm")},
+              {name: "💨 Hardste windstoot", value: ($wind + " km/h")}
+            ], description: "Fijne avond!"}]}' > payload.json
+          curl -H "Content-Type: application/json" -X POST -d @payload.json "$WEBHOOK"
