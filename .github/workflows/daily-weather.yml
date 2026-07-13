@@ -20,7 +20,6 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           FACT=$(shuf -n 1 facts.txt)
-          # 'current' toegevoegd voor actuele temp, 'daily' uitgebreid met zonsopkomst/ondergang
           get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset&timezone=Europe%2FAmsterdam"; }
           
           fmt_w() { 
@@ -29,14 +28,13 @@ jobs:
             (.wind_direction_10m_dominant[0] // 0) as $deg |
             (if ($deg >= 337.5 or $deg < 22.5) then "N" elif ($deg >= 22.5 and $deg < 67.5) then "NO" elif ($deg >= 67.5 and $deg < 112.5) then "O" elif ($deg >= 112.5 and $deg < 157.5) then "ZO" elif ($deg >= 157.5 and $deg < 202.5) then "Z" elif ($deg >= 202.5 and $deg < 247.5) then "ZW" elif ($deg >= 247.5 and $deg < 292.5) then "W" else "NW" end) as $dir |
             (if ($code == 0) then "☀️" elif ($code < 3) then "⛅" elif ($code < 50) then "☁️" elif ($code < 70) then "🌧️" elif ($code < 80) then "❄️" else "⛈️" end) as $emoji |
-            "\(.temperature_2m_min[0])-\(.temperature_2m_max[0])°C | \($emoji) | 💧 \(.precipitation_sum[0])mm | 💨 \(.wind_speed_10m_max[0]) km/u (\($dir)) | ☀️ UV: \(.uv_index_max[0])\n🌅 \(.sunrise[0][11:16]) | 🌇 \(.sunset[0][11:16])"'
+            "Temp: \(.temperature_2m_min[0])-\(.temperature_2m_max[0])°C | Weer: \($emoji)\nNeerslag: \(.precipitation_sum[0])mm | Wind: \(.wind_speed_10m_max[0]) km/u (\($dir))\nUV-index: \(.uv_index_max[0]) | Zon: \(.sunrise[0][11:16]) - \(.sunset[0][11:16])"'
           }
           
           NOORD=$(get_data 53.21 6.56)
           MIDDEN=$(get_data 52.13 5.29)
           ZUID=$(get_data 50.85 5.69)
           
-          # Huidige temperaturen extraheren
           N_NOW=$(echo $NOORD | jq -r '.current.temperature_2m')
           M_NOW=$(echo $MIDDEN | jq -r '.current.temperature_2m')
           Z_NOW=$(echo $ZUID | jq -r '.current.temperature_2m')
@@ -69,7 +67,8 @@ jobs:
         run: |
           get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max&timezone=Europe%2FAmsterdam"; }
           
-          fmt_h() { echo "$1" | jq -r '.daily | "🔥 \(.temperature_2m_max[0])°C | 💧 \(.precipitation_sum[0])mm | 💨 \(.wind_gusts_10m_max[0]) km/u"'; }
+          # Ook hier 'onder elkaar' opmaak toegevoegd voor de terugblik
+          fmt_h() { echo "$1" | jq -r '.daily | "Temp: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nWind: \(.wind_gusts_10m_max[0]) km/u"'; }
           
           N_DATA=$(get_hist 53.21 6.56)
           M_DATA=$(get_hist 52.13 5.29)
