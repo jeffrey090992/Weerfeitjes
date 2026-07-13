@@ -7,7 +7,7 @@ csv_path = os.path.join(root_dir, 'knmi_data.csv')
 
 # --- JOUW BESTAANDE LOGICA ---
 # Bijvoorbeeld: df = haal_data_op()
- df.to_csv(csv_path, index=False)
+df.to_csv(csv_path, index=False)
 
 # Log het pad waar het bestand wordt opgeslagen
 print(f"Opslaan van bestand naar: {csv_path}")
