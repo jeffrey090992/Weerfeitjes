@@ -6,7 +6,6 @@ on:
 jobs:
   import-knmi:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -20,20 +19,27 @@ jobs:
           python-version: "3.x"
 
       - name: Packages installeren
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: KNMI data ophalen
+        id: knmi_import
         run: |
-          python scripts/import_knmi.py
+          # Voer script uit en vang de output op in GITHUB_OUTPUT
+          python scripts/import_knmi.py >> $GITHUB_OUTPUT
 
       - name: Database opslaan
         run: |
           git config --global user.name "KNMI Bot"
           git config --global user.email "actions@github.com"
-
           git add database/knmi_weather.db
-
+          # Check of er wijzigingen zijn, anders stop zonder foutmelding
           git commit -m "Update KNMI dagrecords database" || exit 0
-
           git push
+
+      - name: Stuur bericht naar Discord
+        uses: sarisia/actions-status-discord@v1
+        if: always()
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "KNMI Import Status"
+          description: ${{ steps.knmi_import.outputs.message }}
