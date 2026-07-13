@@ -20,17 +20,25 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           FACT=$(shuf -n 1 facts.txt)
-          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Europe%2FAmsterdam")
+          # API call uitgebreid met uv_index_max, wind_speed_10m_max en cloud_cover_mean
+          DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_speed_10m_max,cloud_cover_mean&timezone=Europe%2FAmsterdam")
           MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_probability_max[0]')
           SUNR=$(echo "$DATA" | jq -r '.daily.sunrise[0]' | cut -d'T' -f2)
           SUNS=$(echo "$DATA" | jq -r '.daily.sunset[0]' | cut -d'T' -f2)
+          UV=$(echo "$DATA" | jq -r '.daily.uv_index_max[0]')
+          WIND=$(echo "$DATA" | jq -r '.daily.wind_speed_10m_max[0]')
+          CLOUD=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
           
           jq -n --arg f "$FACT" --arg t "$MIN°C tot $MAX°C" --arg r "$RAIN%" --arg s "🌅 $SUNR | 🌇 $SUNS" \
+            --arg uv "$UV" --arg wind "$WIND km/u" --arg cloud "$CLOUD%" \
             '{embeds: [{title: "📅 Weersverwachting voor Vandaag", color: 3447003, fields: [
               {name: "🌡️ Temperatuur", value: $t, inline: true},
               {name: "🌧️ Kans op regen", value: $r, inline: true},
+              {name: "☀️ UV-Index", value: $uv, inline: true},
+              {name: "💨 Max wind", value: $wind, inline: true},
+              {name: "☁️ Bewolking", value: $cloud, inline: true},
               {name: "🌅 Zon", value: $s},
               {name: "🧠 Weerfeitje", value: $f}
             ]}]}' > payload.json
@@ -48,14 +56,11 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Historische archiefdata ophalen voor vandaag
           DATA=$(curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=52.13&longitude=5.29&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,sunshine_duration,wind_gusts_10m_max&timezone=Europe%2FAmsterdam")
           MAX=$(echo "$DATA" | jq -r '.daily.temperature_2m_max[0]')
           MIN=$(echo "$DATA" | jq -r '.daily.temperature_2m_min[0]')
           RAIN=$(echo "$DATA" | jq -r '.daily.precipitation_sum[0]')
           WIND=$(echo "$DATA" | jq -r '.daily.wind_gusts_10m_max[0]')
-          
-          # Afronden op 1 decimaal
           SUN=$(echo "$DATA" | jq -r '.daily.sunshine_duration[0]' | awk '{printf "%.1f", $1/3600}')
           
           jq -n --arg max "$MAX" --arg min "$MIN" --arg rain "$RAIN" --arg wind "$WIND" --arg sun "$SUN" \
