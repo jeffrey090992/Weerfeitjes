@@ -8,6 +8,9 @@ on:
 jobs:
   weather:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Nodig voor de database update
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,16 +21,25 @@ jobs:
           pip install requests pandas
 
       - name: Haal KNMI data op
+        id: knmi_import
         run: python scripts/import_knmi.py
 
       - name: Verwerk data
         run: python scripts/daily_records.py
 
+      - name: Database opslaan
+        run: |
+          git config --global user.name "KNMI Bot"
+          git config --global user.email "actions@github.com"
+          git add database/knmi_weather.db
+          git commit -m "Update KNMI dagrecords database" || exit 0
+          git push
+
       - name: Verstuur naar Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          KNMI_MSG: ${{ steps.knmi_import.outputs.message }}
         run: |
-          # Controleer of JSON bestaat
           if [ ! -f daily_records.json ]; then
             echo "JSON bestand niet gevonden!"
             exit 1
@@ -38,7 +50,7 @@ jobs:
           WET=$(jq -r '.natste.waarde' daily_records.json)
           
           jq -n \
-            --arg w "$WARM" --arg c "$COLD" --arg wt "$WET" \
+            --arg w "$WARM" --arg c "$COLD" --arg wt "$WET" --arg km "$KNMI_MSG" \
             '{
               "embeds": [{
                 "title": "📅 Weeroverzicht",
@@ -46,7 +58,8 @@ jobs:
                 "fields": [
                   {"name": "🔥 Max", "value": ($w + "°C"), "inline": true},
                   {"name": "❄️ Min", "value": ($c + "°C"), "inline": true},
-                  {"name": "🌧️ Regen", "value": ($wt + " mm")}
+                  {"name": "🌧️ Regen", "value": ($wt + " mm")},
+                  {"name": "📊 KNMI Status", "value": $km}
                 ]
               }]
             }' > payload.json
