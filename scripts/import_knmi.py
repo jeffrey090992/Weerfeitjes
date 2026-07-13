@@ -1,31 +1,25 @@
 import os
 import pandas as pd
 
-# 1. Definieer het pad
+# Pad naar de root
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 csv_path = os.path.join(root_dir, 'knmi_data.csv')
 
-# 2. HIER MOET JOUW LOGICA STAAN OM DATA TE HALEN
-# Zorg dat je 'df' definieert. Bijvoorbeeld:
-# df = pd.read_csv('jouw_bron_url_of_bestand') 
-# OF als je zelf data maakt:
-# df = pd.DataFrame({'datum': ['2026-07-13'], 'waarde': [20]})
+# --- JOUW DATA OPHAAL LOGICA ---
+# VOORBEELD: Vervang dit door jouw daadwerkelijke ophaalcode
+# df = pd.read_csv('...') of df = pd.DataFrame(...)
+# ZORG DAT 'df' hier gevuld wordt met data!
 
-# Controleer of df bestaat voordat we opslaan
-if 'df' in locals():
+# Controleer of df gevuld is
+if 'df' in locals() and not df.empty:
     df.to_csv(csv_path, index=False)
-    print(f"Opslaan van bestand naar: {csv_path}")
+    print(f"Bestand succesvol opgeslagen op {csv_path} met {len(df)} rijen.")
     aantal_records = len(df)
 else:
-    # Als df niet bestaat, maak een lege dummy om de fout te voorkomen
-    df = pd.DataFrame()
-    print("Waarschuwing: df was niet gedefinieerd, lege file aangemaakt.")
-    df.to_csv(csv_path, index=False)
-    aantal_records = 0
+    print("FOUT: 'df' is leeg of niet gedefinieerd!")
+    exit(1)
 
-# 3. Output naar GitHub
-bericht = f"Succesvol {aantal_records} dagrecords geïmporteerd."
-
+# Output naar GitHub Actions
 if 'GITHUB_OUTPUT' in os.environ:
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-        fh.write(f"message={bericht}\n")
+        fh.write(f"message=Succesvol {aantal_records} records opgehaald.\n")
