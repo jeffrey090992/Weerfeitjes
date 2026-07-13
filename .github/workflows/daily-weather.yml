@@ -20,42 +20,44 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           FACT=$(test -f facts.txt && shuf -n 1 facts.txt || echo "Het weer is onvoorspelbaar!")
-          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset,relative_humidity_2m_max,visibility_max,dew_point_2m_max,pressure_msl,cloud_cover_max&timezone=Europe%2FAmsterdam"; }
+          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset,relative_humidity_2m_max,visibility_max,cloud_cover_max&timezone=Europe%2FAmsterdam"; }
           
           fmt_w() { 
             echo "$1" | jq -r '.daily | 
-            (.weather_code[0] // 0) as $code |
+            (.weather_code[0]) as $code |
             (.wind_direction_10m_dominant[0] // 0) as $deg |
-            (.visibility_max[0] // 0) as $vis |
+            (.visibility_max[0]) as $vis |
             (if ($deg >= 337.5 or $deg < 22.5) then "N" elif ($deg >= 22.5 and $deg < 67.5) then "NO" elif ($deg >= 67.5 and $deg < 112.5) then "O" elif ($deg >= 112.5 and $deg < 157.5) then "ZO" elif ($deg >= 157.5 and $deg < 202.5) then "Z" elif ($deg >= 202.5 and $deg < 247.5) then "ZW" elif ($deg >= 247.5 and $deg < 292.5) then "W" else "NW" end) as $dir |
             (if ($code == 0) then "☀️" elif ($code < 3) then "⛅" elif ($code < 50) then "☁️" elif ($code < 70) then "🌧️" elif ($code < 80) then "❄️" else "⛈️" end) as $emoji |
             (if ($vis < 1000) then "\($vis)m" else "\(($vis / 1000) | floor)km" end) as $vis_fmt |
-            "Min temp: \(.temperature_2m_min[0] // 0)°C\nMax temp: \(.temperature_2m_max[0] // 0)°C\nWeer: \($emoji)\nNeerslag: \(.precipitation_sum[0] // 0)mm\nWind: \(.wind_speed_10m_max[0] // 0) km/u (\($dir))\nLuchtvocht.: \(.relative_humidity_2m_max[0] // 0)%\nDauwpunt: \(.dew_point_2m_max[0] // 0)°C\nLuchtdruk: \(.pressure_msl[0] // 0) hPa\nBewolking: \(.cloud_cover_max[0] // 0)%\nZicht: \($vis_fmt)\nUV-index: \(.uv_index_max[0] // 0)\nZon: \(.sunrise[0][11:16] // "N/B") - \(.sunset[0][11:16] // "N/B")"'
+            "Min temp: \(.temperature_2m_min[0])°C\nMax temp: \(.temperature_2m_max[0])°C\nWeer: \($emoji)\nNeerslag: \(.precipitation_sum[0])mm\nWind: \(.wind_speed_10m_max[0]) km/u (\($dir))\nLuchtvocht.: \(.relative_humidity_2m_max[0])%\nBewolking: \(.cloud_cover_max[0])%\nZicht: \($vis_fmt)\nUV-index: \(.uv_index_max[0])\nZon: \(.sunrise[0][11:16]) - \(.sunset[0][11:16])"'
+          }
+
+          ADVICE_LOGIC() {
+            local tmp=$1; local rain=$2
+            if (( $(echo "$rain > 0" | bc -l) )); then echo "🧥 Neem een paraplu mee!";
+            elif (( $(echo "$tmp < 15" | bc -l) )); then echo "🧣 Trek een warme jas aan.";
+            elif (( $(echo "$tmp > 25" | bc -l) )); then echo "🧴 Smeer je in, het wordt heet!";
+            else echo "👕 Lekker weertje, geniet ervan!"; fi
           }
           
           NOORD=$(get_data 53.21 6.56)
           MIDDEN=$(get_data 52.13 5.29)
           ZUID=$(get_data 50.85 5.69)
           
-          # Veilige berekening: vervang null door 0 voor de berekening
-          TEMP_AVG=$(echo "$NOORD $MIDDEN $ZUID" | jq -s '((.[0].daily.temperature_2m_max[0] // 0) + (.[1].daily.temperature_2m_max[0] // 0) + (.[2].daily.temperature_2m_max[0] // 0)) / 3')
+          N_NOW=$(echo $NOORD | jq -r '.current.temperature_2m')
+          M_NOW=$(echo $MIDDEN | jq -r '.current.temperature_2m')
+          Z_NOW=$(echo $ZUID | jq -r '.current.temperature_2m')
+          
+          W_CODE=$(echo $MIDDEN | jq -r '.daily.weather_code[0]')
+          THUMB=$(if [ $W_CODE -eq 0 ]; then echo "https://cdn-icons-png.flaticon.com/512/869/869869.png"; else echo "https://cdn-icons-png.flaticon.com/512/1163/1163662.png"; fi)
+          
+          TEMP_MAX=$(echo $MIDDEN | jq -r '.daily.temperature_2m_max[0]')
+          RAIN_SUM=$(echo $MIDDEN | jq -r '.daily.precipitation_sum[0]')
+          ADVICE=$(ADVICE_LOGIC $TEMP_MAX $RAIN_SUM)
+          
+          TEMP_AVG=$(echo "$NOORD $MIDDEN $ZUID" | jq -s '(.[0].daily.temperature_2m_max[0] + .[1].daily.temperature_2m_max[0] + .[2].daily.temperature_2m_max[0]) / 3')
           COLOR=$(awk -v t=$TEMP_AVG 'BEGIN { if (t > 22) print 16753920; else if (t < 12) print 3447003; else print 16777215 }')
-          
-          N_NOW=$(echo $NOORD | jq -r '.current.temperature_2m // 0')
-          M_NOW=$(echo $MIDDEN | jq -r '.current.temperature_2m // 0')
-          Z_NOW=$(echo $ZUID | jq -r '.current.temperature_2m // 0')
-          
-          W_CODE=$(echo $MIDDEN | jq -r '.daily.weather_code[0] // 0')
-          THUMB=$(if [ "$W_CODE" == "0" ]; then echo "https://cdn-icons-png.flaticon.com/512/869/869869.png"; else echo "https://cdn-icons-png.flaticon.com/512/1163/1163662.png"; fi)
-          
-          TEMP_MAX=$(echo $MIDDEN | jq -r '.daily.temperature_2m_max[0] // 0')
-          RAIN_SUM=$(echo $MIDDEN | jq -r '.daily.precipitation_sum[0] // 0')
-          
-          if (( $(echo "$RAIN_SUM > 0" | bc -l) )); then ADVICE="🧥 Neem een paraplu mee!";
-          elif (( $(echo "$TEMP_MAX < 15" | bc -l) )); then ADVICE="🧣 Trek een warme jas aan.";
-          elif (( $(echo "$TEMP_MAX > 25" | bc -l) )); then ADVICE="🧴 Smeer je in, het wordt heet!";
-          else ADVICE="👕 Lekker weertje, geniet ervan!"; fi
-          
           TIME_NOW=$(date +'%H:%M')
           
           jq -n --arg f "$FACT" --arg n "$(fmt_w "$NOORD")" --arg m "$(fmt_w "$MIDDEN")" --arg z "$(fmt_w "$ZUID")" \
@@ -70,5 +72,31 @@ jobs:
               {name: "🧠 Weerfeitje", value: $f}
             ]}]}' > payload.json
           curl -H "Content-Type: application/json" -X POST -d @payload.json "$WEBHOOK"
-  
-  # ... (avond-terugblik blijft gelijk)
+
+  avond-terugblik:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event.schedule == '50 22 * * *')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get install -y jq
+      - name: Verstuur Avondbericht
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max,relative_humidity_2m_max&timezone=Europe%2FAmsterdam"; }
+          
+          fmt_h() { echo "$1" | jq -r '.daily | "Max temp: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nHoogste windstoot: \(.wind_gusts_10m_max[0]) km/u\nMax. luchtvochtigheid: \(.relative_humidity_2m_max[0])%"'; }
+          
+          N_DATA=$(get_hist 53.21 6.56)
+          M_DATA=$(get_hist 52.13 5.29)
+          Z_DATA=$(get_hist 50.85 5.69)
+          
+          jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$Z_DATA")" \
+            '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [
+              {name: "📍 Noord", value: $n},
+              {name: "📍 Midden", value: $m},
+              {name: "📍 Zuid", value: $z}
+            ], description: "Fijne avond!"}]}' > payload.json
+          curl -H "Content-Type: application/json" -X POST -d @payload.json "$WEBHOOK"
