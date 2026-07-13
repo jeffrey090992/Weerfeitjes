@@ -26,21 +26,14 @@ jobs:
       - name: Verwerk data
         run: python scripts/daily_records.py
 
-      - name: Database opslaan
-        run: |
-          git config --global user.name "KNMI Bot"
-          git config --global user.email "actions@github.com"
-          git add database/knmi_weather.db
-          git commit -m "Update KNMI dagrecords database" || exit 0
-          git push
-
       - name: Verstuur naar Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           KNMI_MSG: ${{ steps.knmi_import.outputs.message }}
         run: |
+          # Controleer op de root
           if [ ! -f daily_records.json ]; then
-            echo "JSON bestand niet gevonden!"
+            echo "JSON bestand niet gevonden in root!"
             exit 1
           fi
 
