@@ -22,12 +22,10 @@ jobs:
           FACT=$(shuf -n 1 facts.txt)
           get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FAmsterdam"; }
           
-          # Functie om windkracht naar Beaufort om te rekenen (eenvoudige benadering voor Discord)
-          # Formule: v_bft = round((v_kph / 3.6)^(2/3))
           fmt_w() { 
             echo "$1" | jq -r '.daily | 
-            .wind_speed_10m_max[0] as $ws | 
-            (.wind_direction_10m_dominant[0]) as $wd |
+            (.wind_speed_10m_max[0] // 0) as $ws | 
+            (.wind_direction_10m_dominant[0] // 0) as $wd |
             ($ws / 3.6 | pow(2/3) | round) as $bft |
             "\(.temperature_2m_min[0])-\(.temperature_2m_max[0])°C | 🌧️ \(.precipitation_sum[0])mm | 💨 \($bft) Bft (\($wd)°)"'
           }
@@ -59,8 +57,12 @@ jobs:
         run: |
           get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max&timezone=Europe%2FAmsterdam"; }
           
-          # Omrekening voor windstoten naar Beaufort
-          fmt_h() { echo "$1" | jq -r '.daily | (.wind_gusts_10m_max[0] / 3.6 | pow(2/3) | round) as $bft | "🔥 \(.temperature_2m_max[0])°C | 💧 \(.precipitation_sum[0])mm | 💨 \($bft) Bft"'; }
+          fmt_h() { 
+            echo "$1" | jq -r '.daily | 
+            (.wind_gusts_10m_max[0] // 0) as $wg |
+            ($wg / 3.6 | pow(2/3) | round) as $bft | 
+            "🔥 \(.temperature_2m_max[0])°C | 💧 \(.precipitation_sum[0])mm | 💨 \($bft) Bft"'
+          }
           
           N_DATA=$(get_hist 53.21 6.56)
           M_DATA=$(get_hist 52.13 5.29)
