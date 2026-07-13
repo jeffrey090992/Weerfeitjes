@@ -20,28 +20,27 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           FACT=$(shuf -n 1 facts.txt)
-          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FAmsterdam"; }
+          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max,wind_direction_10m_dominant&timezone=Europe%2FAmsterdam"; }
           
           fmt_w() { 
             echo "$1" | jq -r '.daily | 
+            (.weather_code[0]) as $code |
             (.wind_direction_10m_dominant[0] // 0) as $deg |
-            (if ($deg >= 337.5 or $deg < 22.5) then "N"
-             elif ($deg >= 22.5 and $deg < 67.5) then "NO"
-             elif ($deg >= 67.5 and $deg < 112.5) then "O"
-             elif ($deg >= 112.5 and $deg < 157.5) then "ZO"
-             elif ($deg >= 157.5 and $deg < 202.5) then "Z"
-             elif ($deg >= 202.5 and $deg < 247.5) then "ZW"
-             elif ($deg >= 247.5 and $deg < 292.5) then "W"
-             else "NW" end) as $dir |
-            "\(.temperature_2m_min[0])-\(.temperature_2m_max[0])°C | 🌧️ \(.precipitation_sum[0])mm | 💨 \(.wind_speed_10m_max[0]) km/u (\($dir))"'
+            (if ($deg >= 337.5 or $deg < 22.5) then "N" elif ($deg >= 22.5 and $deg < 67.5) then "NO" elif ($deg >= 67.5 and $deg < 112.5) then "O" elif ($deg >= 112.5 and $deg < 157.5) then "ZO" elif ($deg >= 157.5 and $deg < 202.5) then "Z" elif ($deg >= 202.5 and $deg < 247.5) then "ZW" elif ($deg >= 247.5 and $deg < 292.5) then "W" else "NW" end) as $dir |
+            (if ($code == 0) then "☀️" elif ($code < 3) then "⛅" elif ($code < 50) then "☁️" elif ($code < 70) then "🌧️" elif ($code < 80) then "❄️" else "⛈️" end) as $emoji |
+            "\(.temperature_2m_min[0])-\(.temperature_2m_max[0])°C | \($emoji) | 💧 \(.precipitation_sum[0])mm | 💨 \(.wind_speed_10m_max[0]) km/u (\($dir)) | ☀️ UV: \(.uv_index_max[0])"'
           }
           
           NOORD=$(get_data 53.21 6.56)
           MIDDEN=$(get_data 52.13 5.29)
           ZUID=$(get_data 50.85 5.69)
           
-          jq -n --arg f "$FACT" --arg n "$(fmt_w "$NOORD")" --arg m "$(fmt_w "$MIDDEN")" --arg z "$(fmt_w "$ZUID")" \
-            '{embeds: [{title: "📅 Landelijk Weeroverzicht (Verwachting)", color: 3447003, fields: [
+          # Kleur bepalen op basis van temperatuur (gemiddelde van de drie)
+          TEMP_AVG=$(echo "$NOORD $MIDDEN $ZUID" | jq -s '(.[0].daily.temperature_2m_max[0] + .[1].daily.temperature_2m_max[0] + .[2].daily.temperature_2m_max[0]) / 3')
+          COLOR=$(awk -v t=$TEMP_AVG 'BEGIN { if (t > 22) print 16753920; else if (t < 12) print 3447003; else print 16777215 }')
+          
+          jq -n --arg f "$FACT" --arg n "$(fmt_w "$NOORD")" --arg m "$(fmt_w "$MIDDEN")" --arg z "$(fmt_w "$ZUID")" --argjson c "$COLOR" \
+            '{embeds: [{title: "📅 Landelijk Weeroverzicht (Verwachting)", color: $c, fields: [
               {name: "📍 Noord (Groningen)", value: $n},
               {name: "📍 Midden (De Bilt)", value: $m},
               {name: "📍 Zuid (Maastricht)", value: $z},
@@ -63,16 +62,13 @@ jobs:
         run: |
           get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max&timezone=Europe%2FAmsterdam"; }
           
-          fmt_h() { 
-            echo "$1" | jq -r '.daily | 
-            "🔥 \(.temperature_2m_max[0])°C | 💧 \(.precipitation_sum[0])mm | 💨 \(.wind_gusts_10m_max[0]) km/u"'
-          }
+          fmt_h() { echo "$1" | jq -r '.daily | "🔥 \(.temperature_2m_max[0])°C | 💧 \(.precipitation_sum[0])mm | 💨 \(.wind_gusts_10m_max[0]) km/u"'; }
           
           N_DATA=$(get_hist 53.21 6.56)
           M_DATA=$(get_hist 52.13 5.29)
           Z_DATA=$(get_hist 50.85 5.69)
           
-          jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$ZUID")" \
+          jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$Z_DATA")" \
             '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [
               {name: "📍 Noord", value: $n},
               {name: "📍 Midden", value: $m},
