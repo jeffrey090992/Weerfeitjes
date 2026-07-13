@@ -24,7 +24,16 @@ jobs:
           
           fmt_w() { 
             echo "$1" | jq -r '.daily | 
-            "\(.temperature_2m_min[0])-\(.temperature_2m_max[0])°C | 🌧️ \(.precipitation_sum[0])mm | 💨 \(.wind_speed_10m_max[0]) km/u (\(.wind_direction_10m_dominant[0])°)"'
+            (.wind_direction_10m_dominant[0] // 0) as $deg |
+            (if ($deg >= 337.5 or $deg < 22.5) then "N"
+             elif ($deg >= 22.5 and $deg < 67.5) then "NO"
+             elif ($deg >= 67.5 and $deg < 112.5) then "O"
+             elif ($deg >= 112.5 and $deg < 157.5) then "ZO"
+             elif ($deg >= 157.5 and $deg < 202.5) then "Z"
+             elif ($deg >= 202.5 and $deg < 247.5) then "ZW"
+             elif ($deg >= 247.5 and $deg < 292.5) then "W"
+             else "NW" end) as $dir |
+            "\(.temperature_2m_min[0])-\(.temperature_2m_max[0])°C | 🌧️ \(.precipitation_sum[0])mm | 💨 \(.wind_speed_10m_max[0]) km/u (\($dir))"'
           }
           
           NOORD=$(get_data 53.21 6.56)
@@ -63,7 +72,7 @@ jobs:
           M_DATA=$(get_hist 52.13 5.29)
           Z_DATA=$(get_hist 50.85 5.69)
           
-          jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$Z_DATA")" \
+          jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$ZUID")" \
             '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [
               {name: "📍 Noord", value: $n},
               {name: "📍 Midden", value: $m},
