@@ -2,13 +2,15 @@ import os
 import json
 import pandas as pd
 
-# Pad naar de data in de root
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-csv_path = os.path.join(base_dir, 'knmi_data.csv')
+# Directe verwijzing naar de root, aangezien de Action vanuit de root draait
+csv_path = 'knmi_data.csv'
 
 if not os.path.exists(csv_path):
-    print("Fout: knmi_data.csv niet gevonden")
+    print(f"Fout: {csv_path} niet gevonden in {os.getcwd()}")
     exit(1)
 
+df = pd.read_csv(csv_path)
+
 # --- JOUW VERWERKINGSLOGICA ---
-# Hier wordt je data ingelezen en daily_records.json aangemaakt
+# Hier wordt daily_records.json aangemaakt in de root
+# voorbeeld: resultaat.to_json('daily_records.json')
