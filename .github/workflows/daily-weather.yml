@@ -2,8 +2,8 @@ name: Daily Weather
 
 on:
   schedule:
-    - cron: "0 8 * * *"
-    - cron: "50 22 * * *"
+    - cron: "0 8 * * *"    # Ochtendverwachting
+    - cron: "50 22 * * *"  # Avondterugblik
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           FACT=$(test -f facts.txt && shuf -n 1 facts.txt || echo "Het weer is onvoorspelbaar!")
-          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset,relative_humidity_2m_max,visibility_max,cloud_cover_max&timezone=Europe%2FAmsterdam"; }
+          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset,relative_humidity_2m_max,visibility_max,cloud_cover_max&timezone=Europe%2FAmsterdam"; }
           
           fmt_w() { 
             echo "$1" | jq -r '.daily | 
@@ -45,9 +45,9 @@ jobs:
           MIDDEN=$(get_data 52.13 5.29)
           ZUID=$(get_data 50.85 5.69)
           
-          N_NOW=$(echo $NOORD | jq -r '.current.temperature_2m')
-          M_NOW=$(echo $MIDDEN | jq -r '.current.temperature_2m')
-          Z_NOW=$(echo $ZUID | jq -r '.current.temperature_2m')
+          N_LIVE="Temp: $(echo $NOORD | jq -r '.current.temperature_2m')°C, Wind: $(echo $NOORD | jq -r '.current.wind_speed_10m') km/u"
+          M_LIVE="Temp: $(echo $MIDDEN | jq -r '.current.temperature_2m')°C, Wind: $(echo $MIDDEN | jq -r '.current.wind_speed_10m') km/u"
+          Z_LIVE="Temp: $(echo $ZUID | jq -r '.current.temperature_2m')°C, Wind: $(echo $ZUID | jq -r '.current.wind_speed_10m') km/u"
           
           W_CODE=$(echo $MIDDEN | jq -r '.daily.weather_code[0]')
           THUMB=$(if [ $W_CODE -eq 0 ]; then echo "https://cdn-icons-png.flaticon.com/512/869/869869.png"; else echo "https://cdn-icons-png.flaticon.com/512/1163/1163662.png"; fi)
@@ -61,10 +61,10 @@ jobs:
           TIME_NOW=$(date +'%H:%M')
           
           jq -n --arg f "$FACT" --arg n "$(fmt_w "$NOORD")" --arg m "$(fmt_w "$MIDDEN")" --arg z "$(fmt_w "$ZUID")" \
-                --arg n_n "$N_NOW" --arg m_n "$M_NOW" --arg z_n "$Z_NOW" --argjson c "$COLOR" \
+                --arg n_l "$N_LIVE" --arg m_l "$M_LIVE" --arg z_l "$Z_LIVE" --argjson c "$COLOR" \
                 --arg th "$THUMB" --arg adv "$ADVICE" --arg t "$TIME_NOW" \
             '{embeds: [{title: "📅 Landelijk Weeroverzicht (Verwachting)", color: $c, thumbnail: {url: $th}, footer: {text: "Laatst ververst: \($t)"}, fields: [
-              {name: "🌡️ Live (N/M/Z)", value: "\($n_n)°C / \($m_n)°C / \($z_n)°C", inline: false},
+              {name: "🌡️ Live", value: "Noord: \($n_l)\nMidden: \($m_l)\nZuid: \($z_l)", inline: false},
               {name: "📍 Noord", value: $n},
               {name: "📍 Midden", value: $m},
               {name: "📍 Zuid", value: $z},
@@ -86,6 +86,8 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max,relative_humidity_2m_max&timezone=Europe%2FAmsterdam"; }
+          # Live data ophalen voor avondbericht
+          get_now() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,wind_speed_10m"; }
           
           fmt_h() { echo "$1" | jq -r '.daily | "Max temp: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nHoogste windstoot: \(.wind_gusts_10m_max[0]) km/u\nMax. luchtvochtigheid: \(.relative_humidity_2m_max[0])%"'; }
           
@@ -93,8 +95,14 @@ jobs:
           M_DATA=$(get_hist 52.13 5.29)
           Z_DATA=$(get_hist 50.85 5.69)
           
+          N_LIVE="Temp: $(get_now 53.21 6.56 | jq -r '.current.temperature_2m')°C, Wind: $(get_now 53.21 6.56 | jq -r '.current.wind_speed_10m') km/u"
+          M_LIVE="Temp: $(get_now 52.13 5.29 | jq -r '.current.temperature_2m')°C, Wind: $(get_now 52.13 5.29 | jq -r '.current.wind_speed_10m') km/u"
+          Z_LIVE="Temp: $(get_now 50.85 5.69 | jq -r '.current.temperature_2m')°C, Wind: $(get_now 50.85 5.69 | jq -r '.current.wind_speed_10m') km/u"
+          
           jq -n --arg n "$(fmt_h "$N_DATA")" --arg m "$(fmt_h "$M_DATA")" --arg z "$(fmt_h "$Z_DATA")" \
+                --arg n_l "$N_LIVE" --arg m_l "$M_LIVE" --arg z_l "$Z_LIVE" \
             '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [
+              {name: "🌡️ Huidige status (Live)", value: "Noord: \($n_l)\nMidden: \($m_l)\nZuid: \($z_l)", inline: false},
               {name: "📍 Noord", value: $n},
               {name: "📍 Midden", value: $m},
               {name: "📍 Zuid", value: $z}
