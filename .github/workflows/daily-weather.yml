@@ -2,14 +2,14 @@ name: Daily Weather
 
 on:
   schedule:
-    - cron: "0 8 * * *"    # Ochtendverwachting
-    - cron: "50 22 * * *"  # Avondterugblik
+    - cron: "0 6 * * *"    # 08:00 Nederlandse zomertijd
+    - cron: "0 21 * * *"   # 23:00 Nederlandse zomertijd
   workflow_dispatch:
 
 jobs:
   ochtend-verwachting:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || (github.event.schedule == '0 8 * * *')
+    if: github.event_name == 'workflow_dispatch' || (github.event.schedule == '0 6 * * *')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
 
   avond-terugblik:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || (github.event.schedule == '50 22 * * *')
+    if: github.event_name == 'workflow_dispatch' || (github.event.schedule == '0 21 * * *')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
