@@ -2,11 +2,29 @@ name: Daily Weather
 
 on:
   schedule:
-    - cron: "0 6 * * *"
-    - cron: "0 21 * * *"
+    - cron: "0 * * * *"    # Elk uur: Live status
+    - cron: "0 6 * * *"    # 08:00 (NL tijd): Ochtendverwachting
+    - cron: "0 21 * * *"   # 23:00 (NL tijd): Avondterugblik
   workflow_dispatch:
 
 jobs:
+  live-update:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event.schedule == '0 * * * *')
+    steps:
+      - name: Install
+        run: sudo apt-get install -y jq
+      - name: Verstuur Live Bericht
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          get_live() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m&timezone=Europe%2FAmsterdam"; }
+          fmt_l() { echo "$1" | jq -r '.current as $c | (.wind_direction_10m // 0) as $deg | (if ($deg >= 337.5 or $deg < 22.5) then "N" elif ($deg >= 22.5 and $deg < 67.5) then "NO" elif ($deg >= 67.5 and $deg < 112.5) then "O" elif ($deg >= 112.5 and $deg < 157.5) then "ZO" elif ($deg >= 157.5 and $deg < 202.5) then "Z" elif ($deg >= 202.5 and $deg < 247.5) then "ZW" elif ($deg >= 247.5 and $deg < 292.5) then "W" else "NW" end) as $dir | (if ($c.weather_code == 0) then "☀️" elif ($c.weather_code < 3) then "⛅" elif ($c.weather_code < 50) then "☁️" elif ($c.weather_code < 70) then "🌧️" else "⛈️" end) as $emoji | "\($emoji) \($c.temperature_2m)°C\n💧 \($c.relative_humidity_2m)%\n☁️ \($c.cloud_cover)%\n🌧️ \($c.precipitation)mm\n💨 \($c.wind_speed_10m)km/u \($dir)"'; }
+          N=$(get_live 53.21 6.56); M=$(get_live 52.13 5.29); Z=$(get_live 50.85 5.69); O=$(get_live 52.22 6.89); W=$(get_live 51.92 4.48)
+          jq -n --arg n "$(fmt_l "$N")" --arg m "$(fmt_l "$M")" --arg z "$(fmt_l "$Z")" --arg o "$(fmt_l "$O")" --arg w "$(fmt_l "$W")" \
+          '{embeds: [{title: "🌡️ Live Weerbericht", color: 3447003, fields: [{name: "📍 Noord", value: $n, inline: true}, {name: "📍 Midden", value: $m, inline: true}, {name: "📍 Zuid", value: $z, inline: true}, {name: "📍 Oost", value: $o, inline: true}, {name: "📍 West", value: $w, inline: true}]}]}' > payload.json
+          curl -H "Content-Type: application/json" -X POST -d @payload.json "$WEBHOOK"
+
   ochtend-verwachting:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || (github.event.schedule == '0 6 * * *')
@@ -20,47 +38,11 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           FACT=$(test -f facts.txt && shuf -n 1 facts.txt || echo "Het weer is onvoorspelbaar!")
-          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset,relative_humidity_2m_mean,visibility_max,cloud_cover_max&timezone=Europe%2FAmsterdam"; }
-          
-          fmt_w() { 
-            echo "$1" | jq -r '.daily | 
-            (.weather_code[0]) as $code |
-            (.wind_direction_10m_dominant[0] // 0) as $deg |
-            (.visibility_max[0]) as $vis |
-            (if ($deg >= 337.5 or $deg < 22.5) then "N" elif ($deg >= 22.5 and $deg < 67.5) then "NO" elif ($deg >= 67.5 and $deg < 112.5) then "O" elif ($deg >= 112.5 and $deg < 157.5) then "ZO" elif ($deg >= 157.5 and $deg < 202.5) then "Z" elif ($deg >= 202.5 and $deg < 247.5) then "ZW" elif ($deg >= 247.5 and $deg < 292.5) then "W" else "NW" end) as $dir |
-            (if ($code == 0) then "☀️" elif ($code < 3) then "⛅" elif ($code < 50) then "☁️" elif ($code < 70) then "🌧️" elif ($code < 80) then "❄️" else "⛈️" end) as $emoji |
-            (if ($vis < 1000) then "\($vis)m" else "\(($vis / 1000) | floor)km" end) as $vis_fmt |
-            "Min: \(.temperature_2m_min[0])°C\nMax: \(.temperature_2m_max[0])°C\nWeer: \($emoji)\nNeerslag: \(.precipitation_sum[0])mm\nWind: \(.wind_speed_10m_max[0]) km/u (\($dir))\nLuchtvocht.: \(.relative_humidity_2m_mean[0])%\nBewolking: \(.cloud_cover_max[0])%\nZicht: \($vis_fmt)\nUV: \(.uv_index_max[0])"'
-          }
-
-          ADVICE_LOGIC() {
-            local tmp=$1; local rain=$2
-            if (( $(echo "$rain > 0" | bc -l) )); then echo "🧥 Neem een paraplu mee!";
-            elif (( $(echo "$tmp < 15" | bc -l) )); then echo "🧣 Trek een warme jas aan.";
-            elif (( $(echo "$tmp > 25" | bc -l) )); then echo "🧴 Smeer je in, het wordt heet!";
-            else echo "👕 Lekker weertje, geniet ervan!"; fi
-          }
-          
+          get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_mean&timezone=Europe%2FAmsterdam"; }
+          fmt_w() { echo "$1" | jq -r '.daily | "Min: \(.temperature_2m_min[0])°C\nMax: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nGem. Luchtvocht.: \(.relative_humidity_2m_mean[0])%"'; }
           N=$(get_data 53.21 6.56); M=$(get_data 52.13 5.29); Z=$(get_data 50.85 5.69); O=$(get_data 52.22 6.89); W=$(get_data 51.92 4.48)
-          
-          N_L="Temp: $(echo $N | jq -r '.current.temperature_2m')°C, Wind: $(echo $N | jq -r '.current.wind_speed_10m') km/u"
-          M_L="Temp: $(echo $M | jq -r '.current.temperature_2m')°C, Wind: $(echo $M | jq -r '.current.wind_speed_10m') km/u"
-          Z_L="Temp: $(echo $Z | jq -r '.current.temperature_2m')°C, Wind: $(echo $Z | jq -r '.current.wind_speed_10m') km/u"
-          O_L="Temp: $(echo $O | jq -r '.current.temperature_2m')°C, Wind: $(echo $O | jq -r '.current.wind_speed_10m') km/u"
-          W_L="Temp: $(echo $W | jq -r '.current.temperature_2m')°C, Wind: $(echo $W | jq -r '.current.wind_speed_10m') km/u"
-          
-          TEMP_MAX=$(echo $M | jq -r '.daily.temperature_2m_max[0]')
-          RAIN_SUM=$(echo $M | jq -r '.daily.precipitation_sum[0]')
-          ADVICE=$(ADVICE_LOGIC $TEMP_MAX $RAIN_SUM)
-          
           jq -n --arg f "$FACT" --arg n "$(fmt_w "$N")" --arg m "$(fmt_w "$M")" --arg z "$(fmt_w "$Z")" --arg o "$(fmt_w "$O")" --arg w "$(fmt_w "$W")" \
-                --arg n_l "$N_L" --arg m_l "$M_L" --arg z_l "$Z_L" --arg o_l "$O_L" --arg w_l "$W_L" --arg adv "$ADVICE" \
-                '{embeds: [{title: "📅 Landelijk Weeroverzicht (Verwachting)", color: 16777215, fields: [
-                {name: "🌡️ Live", value: "N: \($n_l)\nM: \($m_l)\nZ: \($z_l)\nO: \($o_l)\nW: \($w_l)", inline: false},
-                {name: "📍 Noord", value: $n, inline: true}, {name: "📍 Midden", value: $m, inline: true}, {name: "📍 Zuid", value: $z, inline: true},
-                {name: "📍 Oost", value: $o, inline: true}, {name: "📍 West", value: $w, inline: true},
-                {name: "🧥 Advies", value: $adv, inline: false}, {name: "🧠 Weerfeitje", value: $f, inline: false}
-                ]}]}' > payload.json
+          '{embeds: [{title: "📅 Landelijk Weeroverzicht (Verwachting)", color: 16777215, fields: [{name: "📍 Noord", value: $n, inline: true}, {name: "📍 Midden", value: $m, inline: true}, {name: "📍 Zuid", value: $z, inline: true}, {name: "📍 Oost", value: $o, inline: true}, {name: "📍 West", value: $w, inline: true}, {name: "🧠 Weerfeitje", value: $f, inline: false}]}]}' > payload.json
           curl -H "Content-Type: application/json" -X POST -d @payload.json "$WEBHOOK"
 
   avond-terugblik:
@@ -75,19 +57,9 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max,relative_humidity_2m_mean&timezone=Europe%2FAmsterdam"; }
-          get_now() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,wind_speed_10m&daily=precipitation_sum&timezone=Europe%2FAmsterdam"; }
-          fmt_h() { echo "$1" | jq -r '.daily | "Max temp: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nWindstoot: \(.wind_gusts_10m_max[0]) km/u\nGem. Luchtvocht.: \(.relative_humidity_2m_mean[0])%"'; }
-          
+          get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,relative_humidity_2m_mean&timezone=Europe%2FAmsterdam"; }
+          fmt_h() { echo "$1" | jq -r '.daily | "Max: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nGem. Luchtvocht.: \(.relative_humidity_2m_mean[0])%"'; }
           N_D=$(get_hist 53.21 6.56); M_D=$(get_hist 52.13 5.29); Z_D=$(get_hist 50.85 5.69); O_D=$(get_hist 52.22 6.89); W_D=$(get_hist 51.92 4.48)
-          
-          N_L=$(get_now 53.21 6.56 | jq -r '"\(.current.temperature_2m)°C, \(.current.wind_speed_10m) km/u"'); M_L=$(get_now 52.13 5.29 | jq -r '"\(.current.temperature_2m)°C, \(.current.wind_speed_10m) km/u"'); Z_L=$(get_now 50.85 5.69 | jq -r '"\(.current.temperature_2m)°C, \(.current.wind_speed_10m) km/u"'); O_L=$(get_now 52.22 6.89 | jq -r '"\(.current.temperature_2m)°C, \(.current.wind_speed_10m) km/u"'); W_L=$(get_now 51.92 4.48 | jq -r '"\(.current.temperature_2m)°C, \(.current.wind_speed_10m) km/u"')
-          
           jq -n --arg n "$(fmt_h "$N_D")" --arg m "$(fmt_h "$M_D")" --arg z "$(fmt_h "$Z_D")" --arg o "$(fmt_h "$O_D")" --arg w "$(fmt_h "$W_D")" \
-                --arg n_l "$N_L" --arg m_l "$M_L" --arg z_l "$Z_L" --arg o_l "$O_L" --arg w_l "$W_L" \
-                '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [
-                {name: "🌡️ Live (Temp/Wind)", value: "N: \($n_l)\nM: \($m_l)\nZ: \($z_l)\nO: \($o_l)\nW: \($w_l)", inline: false},
-                {name: "📍 Noord", value: $n, inline: true}, {name: "📍 Midden", value: $m, inline: true}, {name: "📍 Zuid", value: $z, inline: true},
-                {name: "📍 Oost", value: $o, inline: true}, {name: "📍 West", value: $w, inline: true}
-                ], description: "Fijne avond!"}]}' > payload.json
+          '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [{name: "📍 Noord", value: $n, inline: true}, {name: "📍 Midden", value: $m, inline: true}, {name: "📍 Zuid", value: $z, inline: true}, {name: "📍 Oost", value: $o, inline: true}, {name: "📍 West", value: $w, inline: true}], description: "Fijne avond!"}]}' > payload.json
           curl -H "Content-Type: application/json" -X POST -d @payload.json "$WEBHOOK"
