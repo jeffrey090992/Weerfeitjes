@@ -57,8 +57,8 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,relative_humidity_2m_mean&timezone=Europe%2FAmsterdam"; }
-          fmt_h() { echo "$1" | jq -r '.daily | "Max: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nGem. Luchtvocht.: \(.relative_humidity_2m_mean[0])%"'; }
+          get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max,relative_humidity_2m_mean&timezone=Europe%2FAmsterdam"; }
+          fmt_h() { echo "$1" | jq -r '.daily | "Max: \(.temperature_2m_max[0])°C\nNeerslag: \(.precipitation_sum[0])mm\nWindstoot: \(.wind_gusts_10m_max[0]) km/u\nGem. Luchtvocht.: \(.relative_humidity_2m_mean[0])%"'; }
           N_D=$(get_hist 53.21 6.56); M_D=$(get_hist 52.13 5.29); Z_D=$(get_hist 50.85 5.69); O_D=$(get_hist 52.22 6.89); W_D=$(get_hist 51.92 4.48)
           jq -n --arg n "$(fmt_h "$N_D")" --arg m "$(fmt_h "$M_D")" --arg z "$(fmt_h "$Z_D")" --arg o "$(fmt_h "$O_D")" --arg w "$(fmt_h "$W_D")" \
           '{embeds: [{title: "📊 Landelijk Weeroverzicht (Terugblik)", color: 16744192, fields: [{name: "📍 Noord", value: $n, inline: true}, {name: "📍 Midden", value: $m, inline: true}, {name: "📍 Zuid", value: $z, inline: true}, {name: "📍 Oost", value: $o, inline: true}, {name: "📍 West", value: $w, inline: true}], description: "Fijne avond!"}]}' > payload.json
