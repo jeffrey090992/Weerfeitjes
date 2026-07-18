@@ -17,13 +17,14 @@ jobs:
           WEBHOOK_URL: ${{ secrets.RAAD_WEBHOOK }}
         run: |
           if [ -z "$WEBHOOK_URL" ]; then
-            echo "Fout: Webhook URL 'RAAD_WEBHOOK' is niet gevonden in de secrets!"
+            echo "Fout: Webhook URL 'RAAD_WEBHOOK' is niet gevonden!"
             exit 1
           fi
 
           REGEL=$(shuf -n 1 quiz.txt)
           CATEGORIE=$(echo $REGEL | cut -d'|' -f1)
           INFO=$(echo $REGEL | cut -d'|' -f2)
+          # Het antwoord is hier beschikbaar als variabele $ANTWOORD
           ANTWOORD=$(echo $REGEL | cut -d'|' -f3)
 
           case $CATEGORIE in
@@ -39,6 +40,6 @@ jobs:
             \"username\": \"Weer-Quizmaster\",
             \"embeds\": [{
               \"title\": \"$TITEL\",
-              \"description\": \"$INFO \n\n**Antwoord:** ||$ANTWOORD|| \n\n*Raad mee in de chat!*\"
+              \"description\": \"$INFO \n\n*Wat denk jij dat het is? Laat je antwoord achter in de chat!*\"
             }]
           }" $WEBHOOK_URL
