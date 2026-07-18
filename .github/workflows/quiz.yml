@@ -24,9 +24,9 @@ jobs:
           REGEL=$(shuf -n 1 quiz.txt)
           CATEGORIE=$(echo $REGEL | cut -d'|' -f1)
           INFO=$(echo $REGEL | cut -d'|' -f2)
-          # Het antwoord is hier beschikbaar als variabele $ANTWOORD
           ANTWOORD=$(echo $REGEL | cut -d'|' -f3)
 
+          # Bepaal de titel per categorie
           case $CATEGORIE in
               WOLK) TITEL="☁️ Raad de wolk" ;;
               STORM) TITEL="🌀 Raad de storm" ;;
@@ -36,10 +36,28 @@ jobs:
               *) TITEL="🧩 De dagelijkse Weer-quiz" ;;
           esac
 
-          curl -H "Content-Type: application/json" -d "{
-            \"username\": \"Weer-Quizmaster\",
-            \"embeds\": [{
-              \"title\": \"$TITEL\",
-              \"description\": \"$INFO \n\n*Wat denk jij dat het is? Laat je antwoord achter in de chat!*\"
-            }]
-          }" $WEBHOOK_URL
+          # Logica voor afbeeldingen vs tekst
+          if [[ $INFO == http* ]]; then
+            # Als het een URL is:
+            # 1. We pakken de URL voor de afbeelding
+            # 2. We gebruiken de TITEL als beschrijving (zoals "Raad de wolk") 
+            #    in plaats van de URL zelf.
+            IMG_URL="$INFO"
+            DESC="*Dit is een $CATEGORIE. Wat denk jij dat het is? Laat je antwoord achter in de chat!*"
+            
+            # Maak de JSON payload met JQ
+            JSON_PAYLOAD=$(jq -n \
+              --arg title "$TITEL" \
+              --arg desc "$DESC" \
+              --arg img "$IMG_URL" \
+              '{username: "Weer-Quizmaster", embeds: [{title: $title, description: $desc, image: {url: $img}}]}')
+          else
+            # Als het gewoon tekst is (zoals bij TERM):
+            DESC="$INFO"
+            JSON_PAYLOAD=$(jq -n \
+              --arg title "$TITEL" \
+              --arg desc "$DESC" \
+              '{username: "Weer-Quizmaster", embeds: [{title: $title, description: ($desc + "\n\n*Wat denk jij dat het is? Laat je antwoord achter in de chat!*")}]}')
+          fi
+
+          curl -H "Content-Type: application/json" -d "$JSON_PAYLOAD" $WEBHOOK_URL
