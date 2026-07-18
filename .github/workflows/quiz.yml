@@ -1,0 +1,39 @@
+name: Verstuur Weer-Quiz
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  stuur-quiz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verstuur Quiz naar Discord
+        env:
+          DISCORD_WEBHOOK_QUIZ: ${{ secrets.DISCORD_WEBHOOK_QUIZ }}
+        run: |
+          REGEL=$(shuf -n 1 quiz.txt)
+          CATEGORIE=$(echo $REGEL | cut -d'|' -f1)
+          INFO=$(echo $REGEL | cut -d'|' -f2)
+          ANTWOORD=$(echo $REGEL | cut -d'|' -f3)
+
+          case $CATEGORIE in
+              WOLK) TITEL="☁️ Raad de wolk" ;;
+              STORM) TITEL="🌀 Raad de storm" ;;
+              TERM) TITEL="📖 Raad de term" ;;
+              FENOMEEN) TITEL="⚡ Raad het fenomeen" ;;
+              INSTRUMENT) TITEL="🛠️ Raad het instrument" ;;
+              *) TITEL="🧩 De dagelijkse Weer-quiz" ;;
+          esac
+
+          curl -H "Content-Type: application/json" -d "{
+            \"username\": \"Weer-Quizmaster\",
+            \"embeds\": [{
+              \"title\": \"$TITEL\",
+              \"description\": \"$INFO \n\n**Antwoord:** ||$ANTWOORD|| \n\n*Raad mee in de chat!*\"
+            }]
+          }" $DISCORD_WEBHOOK_QUIZ
