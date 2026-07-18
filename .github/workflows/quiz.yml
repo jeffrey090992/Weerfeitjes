@@ -14,8 +14,13 @@ jobs:
 
       - name: Verstuur Quiz naar Discord
         env:
-          DISCORD_WEBHOOK_QUIZ: ${{ secrets.DISCORD_WEBHOOK_QUIZ }}
+          WEBHOOK_URL: ${{ secrets.RAAD_WEBHOOK }}
         run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "Fout: Webhook URL 'RAAD_WEBHOOK' is niet gevonden in de secrets!"
+            exit 1
+          fi
+
           REGEL=$(shuf -n 1 quiz.txt)
           CATEGORIE=$(echo $REGEL | cut -d'|' -f1)
           INFO=$(echo $REGEL | cut -d'|' -f2)
@@ -36,4 +41,4 @@ jobs:
               \"title\": \"$TITEL\",
               \"description\": \"$INFO \n\n**Antwoord:** ||$ANTWOORD|| \n\n*Raad mee in de chat!*\"
             }]
-          }" $DISCORD_WEBHOOK_QUIZ
+          }" $WEBHOOK_URL
