@@ -1,0 +1,6 @@
+WOLK|https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Cumulus_clouds_in_fair_weather.jpg/800px-Cumulus_clouds_in_fair_weather.jpg|Cumulus
+WOLK|https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cirrus_clouds.jpg/800px-Cirrus_clouds.jpg|Cirrus
+STORM|https://upload.wikimedia.org/wikipedia/commons/4/4f/Supercell_storm.jpg|Supercel
+TERM|Een plotselinge, zeer sterke windstoot bij onweer.|Valwind
+FENOMEEN|https://upload.wikimedia.org/wikipedia/commons/b/b1/Rainbow_in_the_rain.jpg|Regenboog
+INSTRUMENT|https://upload.wikimedia.org/wikipedia/commons/d/d3/Anemometer.jpg|Anemometer
