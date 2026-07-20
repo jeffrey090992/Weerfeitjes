@@ -1,6 +1,8 @@
+name: Stargazing Report
+
 on:
   schedule:
-    - cron: "0 17 * * 5" # Elke vrijdag om 19:00 uur Nederlandse tijd (17:00 UTC)
+    - cron: "30 20 * * *" # Elke dag om 22:30 uur Nederlandse tijd (20:30 UTC)
   workflow_dispatch:
 
 jobs:
@@ -14,18 +16,18 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # We voegen &daily=moon_phase en &models=best_match expliciet toe zodat cloud_cover_mean correct gevuld is
+          # Data ophalen
           DATA=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=5.29&daily=cloud_cover_mean,moon_phase&timezone=Europe%2FAmsterdam")
           
           CLOUDS=$(echo "$DATA" | jq -r '.daily.cloud_cover_mean[0]')
           MOON_PHASE_NUM=$(echo "$DATA" | jq -r '.daily.moon_phase[0]')
 
-          # Als CLOUDS leeg of null blijft door een API-glitch, zetten we hem op 0 als fallback
+          # Fallback voor clouds
           if [ "$CLOUDS" = "null" ] || [ -z "$CLOUDS" ]; then
             CLOUDS=0
           fi
 
-          # Open-Meteo geeft een getal tussen 0 en 100 voor de maanfase. 
+          # Maanfase berekenen
           if (( $(echo "$MOON_PHASE_NUM == 0" | bc -l) )); then
             MAAN_FASE="🌑 Nieuwe Maan"
             MOON_PCT=0
@@ -52,37 +54,33 @@ jobs:
             MOON_PCT=$(( (100 - MOON_PHASE_NUM) * 4 ))
           fi
 
-          # 3. Sterrenkijk-score berekenen (max 10)
+          # Sterrenkijk-score berekenen
           SCORE=10
-          
-          # Aftrek voor wolken
           if (( $(echo "$CLOUDS > 80" | bc -l) )); then SCORE=$((SCORE - 6));
           elif (( $(echo "$CLOUDS > 50" | bc -l) )); then SCORE=$((SCORE - 4));
           elif (( $(echo "$CLOUDS > 20" | bc -l) )); then SCORE=$((SCORE - 2));
           fi
 
-          # Aftrek voor felle maan (boven 85% verlicht)
           if [ "$MOON_PCT" -gt 85 ] && [ $SCORE -gt 2 ]; then
             SCORE=$((SCORE - 2))
           fi
-
           if [ $SCORE -lt 1 ]; then SCORE=1; fi
 
           # Advies bepalen
           if [ $SCORE -ge 8 ]; then
             ADVIES="🔭 **Perfecte nacht!** Het is helder en de omstandigheden zijn optimaal. Pak je telescoop of verrekijker!"
-            COLOR=1752220 # Groen
+            COLOR=1752220
           elif [ $SCORE -ge 5 ]; then
             ADVIES="🌤️ **Redelijke omstandigheden:** Er is wat bewolking of maanlicht, maar tussendoor kun je prima kijken."
-            COLOR=15105570 # Oranje
+            COLOR=15105570
           else
             ADVIES="☁️ **Slechte nacht:** Te veel bewolking of storend maanlicht. Je kunt beter binnen blijven."
-            COLOR=12582912 # Rood
+            COLOR=12582912
           fi
 
-          # Payload versturen via jq
+          # Payload versturen
           jq -n \
-            --arg title "🔭 Sterrenkijk-weerbericht voor het Weekend" \
+            --arg title "🔭 Sterrenkijk-weerbericht voor vannacht" \
             --arg score "Score voor vannacht: $SCORE/10" \
             --arg advies "$ADVIES" \
             --arg maan "$MAAN_FASE ($MOON_PCT% verlicht)" \
@@ -102,7 +100,4 @@ jobs:
               }]
             }' > discord_star_payload.json
 
-          curl -H "Content-Type: application/json" \
-               -X POST \
-               -d @discord_star_payload.json \
-               "$WEBHOOK"
+          curl -H "Content-Type: application/json" -X POST -d @discord_star_payload.json "$WEBHOOK"
