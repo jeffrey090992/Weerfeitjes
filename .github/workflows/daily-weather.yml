@@ -16,7 +16,7 @@ jobs:
         run: sudo apt-get install -y jq
       - name: Verstuur Live Bericht
         env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_LIVE }}
         run: |
           get_live() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m,visibility&timezone=Europe%2FAmsterdam"; }
           fmt_l() { echo "$1" | jq -r '.current as $c | (.wind_direction_10m // 0) as $deg | (if ($deg >= 337.5 or $deg < 22.5) then "N" elif ($deg >= 22.5 and $deg < 67.5) then "NO" elif ($deg >= 67.5 and $deg < 112.5) then "O" elif ($deg >= 112.5 and $deg < 157.5) then "ZO" elif ($deg >= 157.5 and $deg < 202.5) then "Z" elif ($deg >= 202.5 and $deg < 247.5) then "ZW" elif ($deg >= 247.5 and $deg < 292.5) then "W" else "NW" end) as $dir | (if ($c.weather_code == 0) then "☀️" elif ($c.weather_code < 3) then "⛅" elif ($c.weather_code < 50) then "☁️" elif ($c.weather_code < 70) then "🌧️" else "⛈️" end) as $emoji | (if ($c.visibility < 1000) then "\($c.visibility)m" else "\($c.visibility / 1000 | round)km" end) as $vis | "**🌡️ \($c.temperature_2m)°C**\n\($emoji) Weerbeeld\n💧 Luchtvocht: \($c.relative_humidity_2m)%\n☁️ Bewolking: \($c.cloud_cover)%\n🌧️ Neerslag: \($c.precipitation)mm\n💨 Wind: \($c.wind_speed_10m)km/u \($dir)\n👀 Zicht: \($vis)"'; }
@@ -41,7 +41,7 @@ jobs:
         run: sudo apt-get install -y jq bc
       - name: Verstuur Ochtendbericht
         env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DAILY }}
         run: |
           FACT=$(test -f facts.txt && shuf -n 1 facts.txt || echo "Het weer is onvoorspelbaar!")
           get_data() { curl -s "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_mean,uv_index_max,precipitation_probability_max,sunrise,sunset,apparent_temperature_max,wind_speed_10m_max&timezone=Europe%2FAmsterdam"; }
@@ -65,7 +65,7 @@ jobs:
         run: sudo apt-get install -y jq
       - name: Verstuur Avondbericht
         env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DAILY }}
         run: |
           get_hist() { curl -s "https://archive-api.open-meteo.com/v1/archive?latitude=$1&longitude=$2&start_date=$(date +%Y-%m-%d)&end_date=$(date +%Y-%m-%d)&daily=temperature_2m_max,precipitation_sum,wind_gusts_10m_max,relative_humidity_2m_mean&timezone=Europe%2FAmsterdam"; }
           fmt_h() { echo "$1" | jq -r '.daily | "🌡️ Max: \(.temperature_2m_max[0])°C\n🌧️ Neerslag: \(.precipitation_sum[0])mm\n💨 Max Windstoot: \(.wind_gusts_10m_max[0]) km/u\n🌫️ Gem. Luchtvocht.: \(.relative_humidity_2m_mean[0])%"'; }
